@@ -1,0 +1,11 @@
+{
+  "telegram_token": "YOUR_TOKEN",
+  "user_id": "YOUR_STARHUB_EMAIL",
+  "user_password": "YOUR_HASHED_PASSWORD",
+  "whitelisted_user_names": [
+    // TELEGRAM_USER_IDS
+  ],
+  "phone_numbers": [
+    // PHONE_NUMBERS
+  ]
+}
