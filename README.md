@@ -22,3 +22,7 @@ docker run -d --name starhub-bot -v `pwd`/config:/app/config:ro vantablack/starh
 ```bash
 docker run -d --name starhub-bot -v `pwd`/config:/app/config:ro vantablack/starhub-tg-bot && docker logs -f starhub-bot
 ```
+
+```bash
+docker run -d --rm --name starhub-bot -v `pwd`/config:/app/config:ro vantablack/starhub-tg-bot && docker logs -f starhub-bot
+```
