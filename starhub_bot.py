@@ -1,17 +1,11 @@
-# Changes
-# import json
-# added config.json file and loading of config.json variables
-
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Basic example for a bot that uses inline keyboards.
-# This program is dedicated to the public domain under the CC0 license.
-"""
-import logging
 import json
+import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, Filters
+from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
+
 from starhub_api import StarHubApi
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -21,17 +15,34 @@ logger = logging.getLogger(__name__)
 with open('config/config.json', 'r') as f:
     config = json.load(f)
 
-# Initializing StarhubApi using config.json
+# Initializing StarHubApi using config.json
 api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'])
 
 
 def start(bot, update):
-    keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=str(number))] for number in
-                     config['phone_numbers']]
-    keyboard = keyboard_btns
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = ["*Here's a few commands that you can use:*"]
+    for number in config['phone_numbers']:
+        text.append("/data {}".format(str(number)))
+    update.message.reply_text('\n'.join(text), parse_mode='Markdown')
 
-    update.message.reply_text('Please choose:', reply_markup=reply_markup)
+
+def data(bot, update, args):
+    # Handle empty arguments
+    if not args:
+        keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=str(number))] for number in
+                         config['phone_numbers']]
+        keyboard = keyboard_btns
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        update.message.reply_text('Please choose:', reply_markup=reply_markup)
+    else:
+        if int(args[0]) not in config['phone_numbers']:
+            update.message.reply_text('Phone number is not recognized')
+        else:
+            # Send selected data usage
+            update.message.reply_text(
+                text=api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=int(args[0])),
+                parse_mode='Markdown')
 
 
 def button(bot, update):
@@ -62,13 +73,6 @@ def button(bot, update):
     bot.send_message(chat_id=query.message.chat_id, text='Please choose:', reply_markup=reply_markup)
 
 
-def help(bot, update):
-    update.message.reply_text(
-        "Hey, if you're reading this, I'm sorry. This is a *private bot* so yeah... Bye.",
-        parse_mode='Markdown'
-    )
-
-
 def error(bot, update, error):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, error)
@@ -77,17 +81,19 @@ def error(bot, update, error):
 def main():
     # Create the Updater and pass it your bot's token.
     updater = Updater(config['telegram_token'])
+    dispatcher = updater.dispatcher
 
-    updater.dispatcher.add_handler(
+    dispatcher.add_handler(
         CommandHandler('start', start, filters=Filters.user(config['whitelisted_user_names'])))
-    updater.dispatcher.add_handler(CallbackQueryHandler(button))
-    updater.dispatcher.add_handler(CommandHandler('help', help))
-    updater.dispatcher.add_error_handler(error)
+    dispatcher.add_handler(
+        CommandHandler('data', data, pass_args=True, filters=Filters.user(config['whitelisted_user_names'])))
+    dispatcher.add_handler(CallbackQueryHandler(button))
+    dispatcher.add_error_handler(error)
 
     # Start the Bot
     updater.start_polling()
 
-    print('Bot started')
+    print('Bot started using long polling')
 
     # Run the bot until the user presses Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT

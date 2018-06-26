@@ -2,8 +2,6 @@
 Based on StarHub's mobile application (iOS v4.4.6) as at 21 June 2018
 """
 import textwrap
-import xml.etree.ElementTree as ET
-from io import StringIO
 
 import requests
 import xmltodict
@@ -125,62 +123,6 @@ class StarHubApi:
             print(r.status_code)
             print(r.text)
 
-    def get_all_usage(self, utoken, cookie_value, phone_number=None):
-        headers = {
-            'User-Agent': self.user_agent_str,
-            'Authorization': utoken,
-            'x-sh-msa-version': self.x_sh_msa_version
-        }
-
-        cookie = {
-            'starhub.com': cookie_value
-        }
-
-        r = requests.get(self.fapi_all_usage_url, headers=headers, cookies=cookie)
-        if r.status_code == 200:
-
-            # Parsing XML text to ElementTree
-            # Remove ns:10 namespace
-            # https://stackoverflow.com/a/25920989
-            # instead of ET.fromstring(xml)
-            # root = ET.ElementTree(ET.fromstring(r.text)).getroot()
-            it = ET.iterparse(StringIO(r.text))
-            for _, el in it:
-                if '}' in el.tag:
-                    el.tag = el.tag.split('}', 1)[1]  # strip all namespaces
-            root = it.root
-
-            # Transform ElementTree to dictionary
-            usage_dict = {}
-            for elem in root.find('.//UsageDetail[UsageServiceId="yournumber"]'):
-                usage_dict[elem.tag] = elem.text
-
-            # usage_dict = normalize_dataUOM(usage_dict)
-            # normalize_dataUOM(usage_dict)
-
-            # Add progress bar
-            usage_dict['X-ProgressBar'] = generate_progress_bar(float(usage_dict['TotalUsage']),
-                                                                float(usage_dict['TotalFreeUnits']),
-                                                                length=20)
-            for i in usage_dict:
-                print(i + ': ' + str(usage_dict[i]))
-
-            # Markdown formatting for Telegram message formatting
-            telegram_format_message = textwrap.dedent("""
-            *Data Usage for {UsageServiceId}*
-            
-            *{TotalUsage}*{TotalUsageUOM} of *{TotalFreeUnits}*{TotalFreeUnitsUOM} used
-            
-            You have *{UsageDifference}{DifferenceUOM}* left
-            """.format(**usage_dict))
-
-            return telegram_format_message
-        else:
-            print(r.status_code)
-            print(r.text)
-
-            return 'Unable to retrieve data usage'
-
     def get_phone_data_usage(self, utoken, phone_number):
         headers = {
             'Authorization': utoken,
@@ -206,8 +148,8 @@ class StarHubApi:
             # usage_dict['ProgressBar'] = generate_progress_bar(float(usage_dict['TotalUsage']),
             #                                                   float(usage_dict['TotalFreeUnits']),
             #                                                   length=20)
-            for i in usage_dict:
-                print(i + ': ' + str(usage_dict[i]))
+
+            usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
 
             # Markdown formatting for Telegram message formatting
             telegram_format_message = textwrap.dedent("""
@@ -216,6 +158,8 @@ class StarHubApi:
                     *{TotalUsage} {TotalUsageUOM}* of *{TotalFreeUnits} {TotalFreeUnitsUOM}* used
 
                     *{UsageDifference} {DifferenceUOM}* left
+                    
+                    *{C-TodayUsage} MB* used today
                     """.format(**usage_dict))
 
             return telegram_format_message
