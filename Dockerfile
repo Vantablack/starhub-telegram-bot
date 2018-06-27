@@ -16,4 +16,7 @@ RUN pip install -r requirements.txt
 
 VOLUME /app/config
 
+# Expose port 80 for WebHook server
+EXPOSE 80
+
 CMD [ "python", "-u", "starhub_bot.py" ]

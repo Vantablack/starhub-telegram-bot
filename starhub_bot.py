@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import textwrap
+import arrow
 
+from dateutil import rrule
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
 
@@ -19,14 +22,14 @@ with open('config/config.json', 'r') as f:
 api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'])
 
 
-def start(bot, update):
+def start_handler(bot, update):
     text = ["*Here's a few commands that you can use:*"]
     for number in config['phone_numbers']:
         text.append("/data {}".format(str(number)))
     update.message.reply_text('\n'.join(text), parse_mode='Markdown')
 
 
-def data(bot, update, args):
+def data_handler(bot, update, args):
     # Handle empty arguments
     if not args:
         keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=str(number))] for number in
@@ -45,7 +48,7 @@ def data(bot, update, args):
                 parse_mode='Markdown')
 
 
-def button(bot, update):
+def callback_handler(bot, update):
     query = update.callback_query
 
     # Show loading message
@@ -55,9 +58,13 @@ def button(bot, update):
         chat_id=query.message.chat_id,
         message_id=query.message.message_id)
 
+    usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data)
+
+    formatted_str = format_message(usage_dict)
+
     # Send selected data usage
     bot.send_message(
-        text=api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data),
+        text=formatted_str,
         parse_mode='Markdown',
         chat_id=query.message.chat_id,
         message_id=query.message.message_id)
@@ -73,9 +80,137 @@ def button(bot, update):
     bot.send_message(chat_id=query.message.chat_id, text='Please choose:', reply_markup=reply_markup)
 
 
-def error(bot, update, error):
+def error_handler(bot, update, error):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, error)
+
+
+def format_message(usage_dict):
+    usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
+
+    # Parsing last processed date time
+    usage_dict['C-LastProcessedDateTime'] = arrow.get(usage_dict['LastProcessedDateTime']).format(
+        'DD/MM/YYYY HH:mm:ss A')
+
+    # Convert data units from GB/KB to MB (with 'N-' prefix)
+    normalize_data_uom(usage_dict)
+
+    # Adding analysis
+    billing_start_date = arrow.get(usage_dict['FromDateTime'])
+    billing_end_date = billing_start_date.shift(months=1)
+    current_date = arrow.utcnow().to('Asia/Singapore')
+
+    total_weekdays = num_weekdays(billing_start_date, billing_end_date)
+
+    # Elapsed weekdays
+    elapsed_weekdays = num_weekdays(billing_start_date, current_date) - 1
+
+    weekdays_left = total_weekdays - elapsed_weekdays
+
+    # Get avg data per day (MB)
+    # (total data left + data used today) / num of weekdays (inclusive of today)
+    # only add the data used today if today is a weekday (weekday() not 5 or 6)
+
+    if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
+        avg_data_mb = float((usage_dict['N-UsageDifference'])) / weekdays_left
+    else:
+        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(
+            usage_dict['DailyUsage']['Day'][-1]['Usage'])) / weekdays_left
+
+    usage_dict['C-AvgData'] = avg_data_mb
+    usage_dict['C-AvgDataUOM'] = 'MB'
+    usage_dict['C-WeekdayLeft'] = weekdays_left
+
+    usage_dict['C-ProgressBar'] = generate_progress_bar(float(usage_dict['N-TotalUsage']),
+                                                        float(usage_dict['N-TotalFreeUnits']),
+                                                        suffix=str(usage_dict['UsagePercentage']) + '%',
+                                                        length=20)
+
+    # Markdown formatting for Telegram message formatting
+    telegram_format_message = textwrap.dedent("""
+        *Data Usage for {UsageServiceId}*
+        
+        *{C-ProgressBar}*
+        Total: *{TotalFreeUnits} {TotalFreeUnitsUOM}*
+        Used: *{TotalUsage} {TotalUsageUOM}*
+        Left: *{UsageDifference} {DifferenceUOM}*
+        Used Today: *{C-TodayUsage} MB*
+        
+        *{C-WeekdayLeft}* weekdays left (including today)
+        
+        Average data usage per day:
+        *{C-AvgData:.2f} {C-AvgDataUOM}*/day
+        
+        {C-LastProcessedDateTime}
+        """.format(**usage_dict))
+
+    return telegram_format_message
+
+
+# https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch03s06.html
+def num_weekdays(start, end):
+    weekends = 5, 6  # saturdays and sundays
+    weekdays = [x for x in range(7) if x not in weekends]
+    days = rrule.rrule(rrule.DAILY, dtstart=start, until=end, byweekday=weekdays)
+    return days.count()
+
+
+def normalize_data_uom(usage_dict):
+    values_to_normalize = {
+        'Usage': 'UOM',
+        'FreeUnits': 'FreeUnitsUOM',
+        'TotalUsage': 'TotalUsageUOM',
+        'TotalFreeUnits': 'TotalFreeUnitsUOM',
+        'UsageDifference': 'DifferenceUOM',
+        'DataShareUnits': 'DataShareUnitsUOM',
+        'UsageDataShare': 'UsageDataShareUOM',
+        'FreeUsage': 'FreeUsageUOM'
+    }
+
+    # Convert to MB
+    for value in values_to_normalize:
+        if usage_dict.get(values_to_normalize[value], False) and usage_dict[values_to_normalize[value]] == 'KB':
+            # Convert KB to MB
+            usage_dict['N-' + value] = kb_to_mb(usage_dict[value])
+        elif usage_dict.get(values_to_normalize[value], False) and usage_dict[values_to_normalize[value]] == 'GB':
+            # Convert GB to MB
+            usage_dict['N-' + value] = gb_to_mb(usage_dict[value])
+        elif usage_dict.get(values_to_normalize[value], False):
+            usage_dict['N-' + value] = usage_dict[value]
+
+    return usage_dict
+
+
+# https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
+def generate_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=100, fill='█'):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    """
+    # percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    return '%s |%s| %s' % (prefix, bar, suffix)
+    # return '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+
+
+def gb_to_mb(gb_data):
+    return 1024 * float(gb_data)
+
+
+def kb_to_mb(kb_data):
+    return (1. / 1024) * float(kb_data)
+
+
+def mb_to_gb(mb_data):
+    return float(mb_data) / 1024
 
 
 def main():
@@ -84,16 +219,22 @@ def main():
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(
-        CommandHandler('start', start, filters=Filters.user(config['whitelisted_user_names'])))
+        CommandHandler('start', start_handler, filters=Filters.user(config['whitelisted_user_names'])))
     dispatcher.add_handler(
-        CommandHandler('data', data, pass_args=True, filters=Filters.user(config['whitelisted_user_names'])))
-    dispatcher.add_handler(CallbackQueryHandler(button))
-    dispatcher.add_error_handler(error)
+        CommandHandler('data', data_handler, pass_args=True, filters=Filters.user(config['whitelisted_user_names'])))
+    dispatcher.add_handler(CallbackQueryHandler(callback_handler))
+    dispatcher.add_error_handler(error_handler)
 
     # Start the Bot
-    updater.start_polling()
-
-    print('Bot started using long polling')
+    if config.get('webhook_url', None):
+        updater.start_webhook(listen="",
+                              port=80,
+                              url_path=config.get('telegram_token'))
+        updater.bot.set_webhook(config.get('webhook_url') + config.get('telegram_token'))
+        print('Bot started using webhook')
+    else:
+        updater.start_polling()
+        print('Bot started using long polling')
 
     # Run the bot until the user presses Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT
