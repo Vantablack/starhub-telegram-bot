@@ -3,13 +3,15 @@
 import json
 import logging
 import textwrap
-import arrow
 
+import arrow
 from dateutil import rrule
+from requests import RequestException
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
 
 from starhub_api import StarHubApi
+from starhub_api import StarHubApiError
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,10 +44,17 @@ def data_handler(bot, update, args):
         if int(args[0]) not in config['phone_numbers']:
             update.message.reply_text('Phone number is not recognized')
         else:
-            # Send selected data usage
-            update.message.reply_text(
-                text=api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=int(args[0])),
-                parse_mode='Markdown')
+            try:
+                # Send selected data usage
+                update.message.reply_text(
+                    text=api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
+                                                  phone_number=int(args[0])), parse_mode='Markdown')
+            except StarHubApiError as ex:
+                print(ex)
+                # Send error message
+                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+            except RequestException as ex:
+                update.message.reply_text(text=str(ex), parse_mode='Markdown')
 
 
 def callback_handler(bot, update):
@@ -58,16 +67,21 @@ def callback_handler(bot, update):
         chat_id=query.message.chat_id,
         message_id=query.message.message_id)
 
-    usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data)
+    try:
+        usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data)
 
-    formatted_str = format_message(usage_dict)
+        formatted_str = format_message(usage_dict)
 
-    # Send selected data usage
-    bot.send_message(
-        text=formatted_str,
-        parse_mode='Markdown',
-        chat_id=query.message.chat_id,
-        message_id=query.message.message_id)
+        # Send selected data usage
+        bot.send_message(
+            text=formatted_str,
+            parse_mode='Markdown',
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id)
+    except StarHubApiError as ex:
+        print(ex)
+        # Send error message
+        bot.send_message(chat_id=query.message.chat_id, text=str(ex), parse_mode='Markdown')
 
     # Delete loading message
     bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)

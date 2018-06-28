@@ -1,7 +1,10 @@
 """
 Based on StarHub's mobile application (iOS v4.4.6) as at 21 June 2018
 """
+import textwrap
+import uuid
 
+import arrow
 import requests
 import xmltodict
 
@@ -30,10 +33,25 @@ class StarHubApi:
         }
 
         r = requests.post(self.msso_login_url, headers=headers, json=mapp_body_dict)
-        if r.status_code == 200:
+
+        if r.status_code == requests.codes.ok:
             res_json = r.json()
-            print('user_token: ' + res_json['user_token'])
-            return res_json['user_token']
+            return res_json.get('user_token', None)
+        else:
+            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
+            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
+
+            raise StarHubApiError(textwrap.dedent("""
+            *REF: {0}*
+            *MSSO/MAPP/LOGIN*
+            
+            User token request failed
+            
+            Request response code: {1}
+            
+            Response body:
+            ```{2}```
+            """.format(ref_code, r.status_code, r.text)))
 
     def get_utoken(self, user_token):
         headers = {
@@ -56,16 +74,26 @@ class StarHubApi:
         r = requests.post(self.fapi_login_url,
                           headers=headers,
                           data=xmltodict.unparse(request_xml_dict))
-        if r.status_code == 200:
-
+        if r.status_code == requests.codes.ok:
             token_response = xmltodict.parse(r.text, process_namespaces=True, namespaces={
                 'http://www.starhub.com/FrontAPI': None
             })
-
             return token_response['IR']['UserDetails']['UToken']
         else:
-            print(r.status_code)
-            print(r.text)
+            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
+            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
+
+            raise StarHubApiError(textwrap.dedent("""
+            *REF: {0}*
+            *FAPI/LOGIN/ESSO*
+            
+            UToken request failed
+            
+            Request response code: {1}
+            
+            Response body:
+            ```{2}```
+            """.format(ref_code, r.status_code, r.text)))
 
     def get_phone_data_usage(self, utoken, phone_number):
         headers = {
@@ -75,7 +103,8 @@ class StarHubApi:
         }
 
         r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number), headers=headers)
-        if r.status_code == 200:
+
+        if r.status_code == requests.codes.ok:
             # Transform XML to dict
             # see https://github.com/martinblech/xmltodict
             usage_dict = xmltodict.parse(r.text, process_namespaces=True, namespaces={
@@ -83,10 +112,23 @@ class StarHubApi:
                 'http://www.starhub.com/FAPI_Usage': None
             })
             usage_dict = usage_dict['IR']['MainContext']['Present']['UsageList']['DataUsages']['UsageDetail']
-
             return usage_dict
         else:
-            print(r.status_code)
-            print(r.text)
+            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
+            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
 
-            return 'Unable to retrieve data usage'
+            raise StarHubApiError(textwrap.dedent("""
+            *REF: {0}*
+            *FAPI/USAGE/DATA*
+            
+            Data usage request failed
+            
+            Request response code: {1}
+            
+            Response body:
+            ```{2}```
+            """.format(ref_code, r.status_code, r.text)))
+
+
+class StarHubApiError(ValueError):
+    """Raise this when there is an error with the StarHub API"""
