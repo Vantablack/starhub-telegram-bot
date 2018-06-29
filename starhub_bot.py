@@ -27,28 +27,54 @@ api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'
 def start_handler(bot, update):
     text = ["*Here's a few commands that you can use:*"]
     for number in config['phone_numbers']:
-        text.append("/data {}".format(str(number)))
+        text.append("/usage {}".format(str(number)))
     update.message.reply_text('\n'.join(text), parse_mode='Markdown')
 
 
-def data_handler(bot, update, args):
+def usage_handler(bot, update, args):
     # Handle empty arguments
     if not args:
-        keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=str(number))] for number in
-                         config['phone_numbers']]
-        keyboard = keyboard_btns
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        update.message.reply_text('Please choose:', reply_markup=reply_markup)
+        callback_type = 'u-'
+        send_inline_keyboard(callback_type, update.message)
     else:
         if int(args[0]) not in config['phone_numbers']:
             update.message.reply_text('Phone number is not recognized')
         else:
             try:
                 # Send selected data usage
-                update.message.reply_text(
-                    text=api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
-                                                  phone_number=int(args[0])), parse_mode='Markdown')
+                usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
+                                                      phone_number=int(args[0]))
+
+                formatted_str = format_usage_message(usage_dict)
+
+                # Send selected data usage
+                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
+            except StarHubApiError as ex:
+                print(ex)
+                # Send error message
+                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+            except RequestException as ex:
+                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+
+
+def history_handler(bot, update, args):
+    # Handle empty arguments
+    if not args:
+        callback_type = 'h-'
+        send_inline_keyboard(callback_type, update.message)
+    else:
+        if int(args[0]) not in config['phone_numbers']:
+            update.message.reply_text('Phone number is not recognized')
+        else:
+            try:
+                # Send selected data usage history
+                usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
+                                                      phone_number=int(args[0]))
+
+                formatted_str = format_usage_history_message(usage_dict)
+
+                # Send selected data usage
+                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
                 print(ex)
                 # Send error message
@@ -68,30 +94,28 @@ def callback_handler(bot, update):
         message_id=query.message.message_id)
 
     try:
-        usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data)
+        usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data[2:])
 
-        formatted_str = format_message(usage_dict)
+        callback_type = query.data[:2]
+
+        if callback_type == 'u-':
+            formatted_str = format_usage_message(usage_dict)
+        else:
+            formatted_str = format_usage_history_message(usage_dict)
 
         # Send selected data usage
-        bot.send_message(
-            text=formatted_str,
-            parse_mode='Markdown',
-            chat_id=query.message.chat_id,
-            message_id=query.message.message_id)
+        query.message.reply_text(text=formatted_str, parse_mode='Markdown')
     except StarHubApiError as ex:
         print(ex)
         # Send error message
-        bot.send_message(chat_id=query.message.chat_id, text=str(ex), parse_mode='Markdown')
+        query.message.reply_text(text=str(ex), parse_mode='Markdown')
 
     # Delete loading message
     bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
 
     # Show inline keyboard again
-    keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=str(number))] for number in
-                     config['phone_numbers']]
-    keyboard = keyboard_btns
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    bot.send_message(chat_id=query.message.chat_id, text='Please choose:', reply_markup=reply_markup)
+    callback_type = query.data[:2]
+    send_inline_keyboard(callback_type, query.message)
 
 
 def error_handler(bot, update, error):
@@ -99,7 +123,7 @@ def error_handler(bot, update, error):
     logger.warning('Update "%s" caused error "%s"', update, error)
 
 
-def format_message(usage_dict):
+def format_usage_message(usage_dict):
     usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
 
     # Parsing last processed date time
@@ -161,9 +185,33 @@ def format_message(usage_dict):
     return telegram_format_message
 
 
+def format_usage_history_message(usage_dict):
+    daily_usage = usage_dict['DailyUsage']['Day']
+
+    text = ['*Usage History (Day)*', '']
+
+    for usage in daily_usage:
+        date = arrow.get(usage['UsageDate'])
+        text.append(
+            '{} - {} MB'.format(date.format('ddd DD/MM/YYYY'), str(usage['Usage'])))
+    return '\n'.join(text)
+
+
+def send_inline_keyboard(callback_type, message):
+    keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=callback_type + str(number))] for number in
+                     config['phone_numbers']]
+    keyboard = keyboard_btns
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if callback_type == 'h-':
+        message.reply_text(text='[Usage history] Please choose:', reply_markup=reply_markup)
+    else:
+        message.reply_text(text='[Current data usage] Please choose:', reply_markup=reply_markup)
+
+
 # https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch03s06.html
 def num_weekdays(start, end):
-    weekends = 5, 6  # saturdays and sundays
+    weekends = 5, 6  # saturdays and sundays/history yournumber
     weekdays = [x for x in range(7) if x not in weekends]
     days = rrule.rrule(rrule.DAILY, dtstart=start, until=end, byweekday=weekdays)
     return days.count()
@@ -233,9 +281,16 @@ def main():
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(
-        CommandHandler('start', start_handler, filters=Filters.user(config['whitelisted_user_names'])))
+        CommandHandler('start', start_handler,
+                       filters=Filters.user(config['whitelisted_user_names'])))
     dispatcher.add_handler(
-        CommandHandler('data', data_handler, pass_args=True, filters=Filters.user(config['whitelisted_user_names'])))
+        CommandHandler('usage', usage_handler,
+                       pass_args=True,
+                       filters=Filters.user(config['whitelisted_user_names'])))
+    dispatcher.add_handler(
+        CommandHandler('history', history_handler,
+                       pass_args=True,
+                       filters=Filters.user(config['whitelisted_user_names'])))
     dispatcher.add_handler(CallbackQueryHandler(callback_handler))
     dispatcher.add_error_handler(error_handler)
 
