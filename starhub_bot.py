@@ -124,7 +124,10 @@ def error_handler(bot, update, error):
 
 
 def format_usage_message(usage_dict):
-    usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
+    if len(usage_dict['DailyUsage']['Day']) > 0:
+        usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
+    else:
+        usage_dict['C-TodayUsage'] = str(0)
 
     # Parsing last processed date time
     usage_dict['C-LastProcessedDateTime'] = arrow.get(usage_dict['LastProcessedDateTime']).format(
@@ -138,22 +141,21 @@ def format_usage_message(usage_dict):
     billing_end_date = billing_start_date.shift(months=1)
     current_date = arrow.utcnow().to('Asia/Singapore')
 
-    total_weekdays = num_weekdays(billing_start_date, billing_end_date)
+    # Half closed interval [a,b)
+    total_weekdays = num_weekdays(billing_start_date, billing_end_date.replace(days=-1))
 
-    # Elapsed weekdays
-    elapsed_weekdays = num_weekdays(billing_start_date, current_date) - 1
+    # Elapsed weekdays, Half closed interval [a,b)
+    elapsed_weekdays = num_weekdays(billing_start_date, current_date.replace(days=-1))
 
     weekdays_left = total_weekdays - elapsed_weekdays
 
     # Get avg data per day (MB)
     # (total data left + data used today) / num of weekdays (inclusive of today)
     # only add the data used today if today is a weekday (weekday() not 5 or 6)
-
     if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
         avg_data_mb = float((usage_dict['N-UsageDifference'])) / weekdays_left
     else:
-        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(
-            usage_dict['DailyUsage']['Day'][-1]['Usage'])) / weekdays_left
+        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(usage_dict['C-TodayUsage'])) / weekdays_left
 
     usage_dict['C-AvgData'] = avg_data_mb
     usage_dict['C-AvgDataUOM'] = 'MB'
@@ -211,7 +213,7 @@ def send_inline_keyboard(callback_type, message):
 
 # https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch03s06.html
 def num_weekdays(start, end):
-    weekends = 5, 6  # saturdays and sundays/history yournumber
+    weekends = 5, 6  # saturdays and sundays/history
     weekdays = [x for x in range(7) if x not in weekends]
     days = rrule.rrule(rrule.DAILY, dtstart=start, until=end, byweekday=weekdays)
     return days.count()
