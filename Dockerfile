@@ -6,7 +6,7 @@
 # Adding -u flag for Python:
 # https://stackoverflow.com/questions/29663459/python-app-does-not-print-anything-when-running-detached-in-docker
 
-FROM python:3.6.6-alpine
+FROM python:3.7.0
 
 COPY . /app
 
