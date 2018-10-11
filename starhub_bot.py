@@ -5,6 +5,7 @@ import logging
 import textwrap
 
 import arrow
+from collections import OrderedDict
 from dateutil import rrule
 from requests import RequestException
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -125,7 +126,10 @@ def error_handler(bot, update, error):
 
 def format_usage_message(usage_dict):
     if len(usage_dict['DailyUsage']['Day']) > 0:
-        usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
+        if isinstance(usage_dict['DailyUsage']['Day'], OrderedDict):
+            usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day']['Usage']
+        else:
+            usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
     else:
         usage_dict['C-TodayUsage'] = str(0)
 
