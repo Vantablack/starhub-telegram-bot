@@ -14,6 +14,7 @@ After some trial and errors the authentication flow is structured as such:
 
 1) https://login.starhubgee.com.sg/msso/mapp/api/login (a.k.a MSSO)
     - Retrieve `user_token` from response (see MSSO Login reference)
+    - Even though the payload contains a `expiry` field, it seems like the `user_token` can still be used even after it is _expired_
 2) https://fapi.starhub.com/MyStarhub/login/esso (a.k.a ESSO)
     - Using `user_token` retrieve `UToken` from response (see ESSO Login reference)
 

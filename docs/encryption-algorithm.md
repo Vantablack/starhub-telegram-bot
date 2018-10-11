@@ -71,11 +71,7 @@ PRODUCTION(
 
 ### Encryption Algorithm
 
-From what I understand, the encryption library uses:
-
-- 256 bit AES encryption and derives the secret key using PKCS #5's PBKDF2.
-- The provided salt is expected to be hex-encoded and at least 8 bytes in length
-- Also applies a random 16 byte initialization vector (IV) to ensure uniqueness
+The encryption of the password is based on SpringFramework's Encryptors. This information is gathered from the decompiled source code.
 
 ``` java
 import org.springframework.security.crypto.encrypt.Encryptors;
@@ -86,6 +82,14 @@ public static String encrypt(String str) {
     return Encryptors.text(password, salt).encrypt(str);
 }
 ```
+
+From what I understand, the encryption library (default setting) uses:
+
+- 256 bit AES encryption and derives the secret key using PKCS #5's PBKDF2.
+- The provided salt is expected to be hex-encoded and at least 8 bytes in length
+- Also applies a random 16 byte initialization vector (IV) to ensure uniqueness
+
+[SpringFramework Encryptor Documentation (4.2.5)](https://docs.spring.io/spring-security/site/docs/4.2.5.RELEASE/apidocs/org/springframework/security/crypto/encrypt/Encryptors.html)
 
 #### Format of Input Password
 
@@ -107,6 +111,8 @@ private MSSOLoginResponse a() {
 > Output: `1a5ebfa6e2445515451af1f7fa2b45ec8385514c660f611ec1ee05478d0083b96848e2f064f51100242b9242e956dff1`
 
 ### Implementing in Python
+
+TODO: Test sample implementation in Python
 
 Someone has already done the implementation in Python thanks to this article: http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html [archive.org link here](https://web.archive.org/web/*/http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html)
 
