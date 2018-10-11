@@ -26,11 +26,17 @@ class StarHubApi:
     user_token = None
     u_token = None
 
-    def __init__(self, user_id, user_password):
+    def __init__(self, user_id, user_password, logger):
+        self.logger = logger
         self.user_id = user_id
         self.user_password = user_password
 
     def get_user_token(self):
+        # Check if self.user_token is set
+        # We do not need to get a new token as this token will not expire (tested: 11 October 2018)
+        if self.user_token:
+            return self.user_token
+
         mapp_body_dict = {
             'site_id': 'mystarhub',
             'user_id': self.user_id,
@@ -90,7 +96,7 @@ class StarHubApi:
                 'http://www.starhub.com/FrontAPI': None
             })
             self.u_token = token_response['IR']['UserDetails']['UToken']
-            return token_response['IR']['UserDetails']['UToken']
+            return self.u_token
         else:
             time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
             ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]

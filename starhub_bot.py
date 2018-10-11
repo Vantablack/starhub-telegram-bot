@@ -22,7 +22,7 @@ with open('config/config.json', 'r') as f:
     config = json.load(f)
 
 # Initializing StarHubApi using config.json
-api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'])
+api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'], logger=logger)
 
 
 def start_handler(bot, update):
