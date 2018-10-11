@@ -49,7 +49,10 @@ class StarHubApi:
             'User-Agent': self.user_agent_str
         }
 
-        r = requests.post(self.msso_login_url, headers=headers, json=mapp_body_dict)
+        r = requests.post(self.msso_login_url,
+                            headers=headers,
+                            json=mapp_body_dict,
+                            timeout=10)
 
         if r.status_code == requests.codes.ok:
             res_json = r.json()
@@ -102,7 +105,8 @@ class StarHubApi:
 
         r = requests.post(self.fapi_login_url,
                           headers=headers,
-                          data=xmltodict.unparse(request_xml_dict))
+                          data=xmltodict.unparse(request_xml_dict),
+                          timeout=10)
         if r.status_code == requests.codes.ok:
             token_response = xmltodict.parse(r.text, process_namespaces=True, namespaces={
                 'http://www.starhub.com/FrontAPI': None
@@ -140,7 +144,9 @@ class StarHubApi:
             'x-sh-msa-version': self.x_sh_msa_version
         }
 
-        r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number), headers=headers)
+        r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number),
+                        headers=headers,
+                        timeout=10)
 
         if r.status_code == requests.codes.ok:
             # Transform XML to dict

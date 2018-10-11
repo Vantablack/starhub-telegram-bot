@@ -53,10 +53,14 @@ def usage_handler(bot, update, args):
                 update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
                 logger.error(ex)
-                # Send error message
                 update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
-                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+                logger.error(ex)
+                update.message.reply_text(text="Unexpected request exception")
+            except: # catch *all* exceptions
+                ex = sys.exc_info()[0]
+                logger.error(ex)
+                update.message.reply_text(text="Unexpected request exception")
 
 
 def history_handler(bot, update, args):
@@ -80,11 +84,14 @@ def history_handler(bot, update, args):
                 update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
                 logger.error(ex)
-                # Send error message
                 update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
                 logger.error(ex)
-                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+                update.message.reply_text(text="Unexpected request exception")
+            except: # catch *all* exceptions
+                ex = sys.exc_info()[0]
+                logger.error(ex)
+                update.message.reply_text(text="Unexpected request exception")
 
 
 def callback_handler(bot, update):
@@ -113,8 +120,14 @@ def callback_handler(bot, update):
         query.message.reply_text(text=formatted_str, parse_mode='Markdown')
     except StarHubApiError as ex:
         logger.error(ex)
-        # Send error message
         query.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
+    except RequestException as ex:
+            logger.error(ex)
+            update.message.reply_text(text="Unexpected request exception")
+    except: # catch *all* exceptions
+        ex = sys.exc_info()[0]
+        logger.error(ex)
+        update.message.reply_text(text="Unexpected request exception")
 
     # Delete loading message
     bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
