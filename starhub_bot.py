@@ -53,7 +53,7 @@ def usage_handler(bot, update, args):
             except StarHubApiError as ex:
                 logger.error(ex)
                 # Send error message
-                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+                update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
                 update.message.reply_text(text=str(ex), parse_mode='Markdown')
 
@@ -79,7 +79,7 @@ def history_handler(bot, update, args):
             except StarHubApiError as ex:
                 logger.error(ex)
                 # Send error message
-                update.message.reply_text(text=str(ex), parse_mode='Markdown')
+                update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text=str(ex), parse_mode='Markdown')
@@ -110,7 +110,7 @@ def callback_handler(bot, update):
     except StarHubApiError as ex:
         logger.error(ex)
         # Send error message
-        query.message.reply_text(text=str(ex), parse_mode='Markdown')
+        query.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
 
     # Delete loading message
     bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
@@ -307,10 +307,10 @@ def main():
                               port=80,
                               url_path=config.get('telegram_token'))
         updater.bot.set_webhook(config.get('webhook_url') + config.get('telegram_token'))
-        print('Bot started using webhook')
+        logger.info('Bot started using webhook')
     else:
         updater.start_polling()
-        print('Bot started using long polling')
+        logger.info('Bot started using long polling')
 
     # Run the bot until the user presses Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT
