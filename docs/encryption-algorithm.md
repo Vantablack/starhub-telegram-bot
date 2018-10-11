@@ -6,8 +6,10 @@ Using [\[GitHub\] skylot/jadx](https://github.com/skylot/jadx) to decompile [My 
 
 There are 3 parts to this documentation
 
-1) How StarHub encrypts/decrypt the **plaintext password** and **hub id email** to the local SQLite DB
+1) How StarHub encrypts/decrypt the **plaintext password** and **hub id email** to the local SQLite DB (Android)
+
 2) How StarHub encrypts/decrypt the **plaintext password** for HTTPS request payload
+
 3) Implementing the algorithm in Python
 
 
@@ -51,7 +53,7 @@ public static String decrypt(String str) throws Exception {
 
 This part involves 2 Strings, the **password** and the **salt**.
 
-The **password** and **salt** was retreived from a class (class name obfuscated) under the package `com.starhub.csselfhelp.utils`.
+The **password** and **salt** was retrieved from a class (class name obfuscated) under the package `com.starhub.csselfhelp.utils`.
 
 ``` java
 PRODUCTION(
