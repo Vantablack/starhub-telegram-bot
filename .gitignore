@@ -215,4 +215,6 @@ fabric.properties
 .idea/httpRequests
 
 ##### Custom #####
+/mitmproxy-flows
+/testing-codes
 config.json
