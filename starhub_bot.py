@@ -51,7 +51,7 @@ def usage_handler(bot, update, args):
                 # Send selected data usage
                 update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
-                print(ex)
+                logger.error(ex)
                 # Send error message
                 update.message.reply_text(text=str(ex), parse_mode='Markdown')
             except RequestException as ex:
@@ -77,10 +77,11 @@ def history_handler(bot, update, args):
                 # Send selected data usage
                 update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
-                print(ex)
+                logger.error(ex)
                 # Send error message
                 update.message.reply_text(text=str(ex), parse_mode='Markdown')
             except RequestException as ex:
+                logger.error(ex)
                 update.message.reply_text(text=str(ex), parse_mode='Markdown')
 
 
@@ -107,7 +108,7 @@ def callback_handler(bot, update):
         # Send selected data usage
         query.message.reply_text(text=formatted_str, parse_mode='Markdown')
     except StarHubApiError as ex:
-        print(ex)
+        logger.error(ex)
         # Send error message
         query.message.reply_text(text=str(ex), parse_mode='Markdown')
 
