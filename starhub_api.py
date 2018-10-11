@@ -22,18 +22,20 @@ class StarHubApi:
     fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?type=LOCAL'
     user_agent_str = 'fe11e865d2af0b5978b4ecdd3d5441bc'
     x_sh_msa_version = '4.4.7'  # Corresponds to the StarHub's iOS app version
-    
-    user_token = None
-    u_token = None
 
     def __init__(self, user_id, user_password, logger):
         self.logger = logger
         self.user_id = user_id
         self.user_password = user_password
+        self.user_token = None
+        self.u_token = None
 
-    def get_user_token(self):
-        # Check if self.user_token is set
-        # We do not need to get a new token as this token will not expire (tested: 11 October 2018)
+    def get_user_token(self, retry = False):
+        """Retrieve user_token from MSSO login endpoint
+
+        Note:
+            Will cache the user_token as it will not expire (tested: 11 October 2018)
+        """
         if self.user_token:
             return self.user_token
 
@@ -53,6 +55,9 @@ class StarHubApi:
             res_json = r.json()
             self.user_token = res_json.get('user_token', None)
             return res_json.get('user_token', None)
+        elif r.status_code != requests.codes.ok and retry == True:
+            logger.warn('Retrying get_user_token. Status code:{0}', r.status_code)
+            return self.get_user_token(retry = False)
         else:
             time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
             ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
@@ -70,7 +75,14 @@ class StarHubApi:
             """.format(ref_code, r.status_code, r.text)),
             user_message = '*Errored. Reference code:* `{0}`'.format(ref_code))
 
-    def get_utoken(self, user_token):
+    def get_utoken(self, user_token, retry = False):
+        """Retrieves u_token from the ESSO login endpoint
+
+        Note:
+            If another u_token is generated, the previous one will be invalidated,
+            causing a 401 Unauthorized error if used
+        """
+
         headers = {
             'User-Agent': self.user_agent_str,
             'Content-Type': 'text/xml'
@@ -97,6 +109,10 @@ class StarHubApi:
             })
             self.u_token = token_response['IR']['UserDetails']['UToken']
             return self.u_token
+        elif r.status_code != requests.codes.ok and retry == True:
+            logger.warn('Retrying get_utoken. Status code:{0}', r.status_code)
+            user_token = self.get_user_token();
+            return self.get_utoken(user_token, retry = False)
         else:
             time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
             ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
@@ -114,7 +130,10 @@ class StarHubApi:
             """.format(ref_code, r.status_code, r.text)),
             user_message = '*Errored. Reference code:* `{0}`'.format(ref_code))
 
-    def get_phone_data_usage(self, utoken, phone_number):
+    def get_phone_data_usage(self, utoken, phone_number, retry = False):
+        """Get a single phone number's data usage
+        """
+
         headers = {
             'Authorization': utoken,
             'User-Agent': self.user_agent_str,
@@ -132,6 +151,10 @@ class StarHubApi:
             })
             usage_dict = usage_dict['IR']['MainContext']['Present']['UsageList']['DataUsages']['UsageDetail']
             return usage_dict
+        elif r.status_code != requests.codes.ok and retry == True:
+            logger.warn('Retrying get_phone_data_usage. Status code:{0}', r.status_code)
+            utoken = self.get_utoken(self.get_user_token())
+            return self.get_phone_data_usage(utoken, phone_number, retry = False)
         else:
             time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
             ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
@@ -144,45 +167,6 @@ class StarHubApi:
             
             Request response code: {1}
             
-            Response body:
-            ```{2}```
-            """.format(ref_code, r.status_code, r.text)),
-            user_message = '*Errored. Reference code:* `{0}`'.format(ref_code))
-
-    def get_phone_data_usage_new(self, phone_number, retry):
-        headers = {
-            'Authorization': self.u_token,
-            'User-Agent': self.user_agent_str,
-            'x-sh-msa-version': self.x_sh_msa_version
-        }
-
-        r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number), headers=headers)
-
-        if r.status_code == requests.codes.ok:
-            # Transform XML to dict
-            # see https://github.com/martinblech/xmltodict
-            usage_dict = xmltodict.parse(r.text, process_namespaces=True, namespaces={
-                'http://www.starhub.com/FrontAPI': None,
-                'http://www.starhub.com/FAPI_Usage': None
-            })
-            usage_dict = usage_dict['IR']['MainContext']['Present']['UsageList']['DataUsages']['UsageDetail']
-            return usage_dict
-        elif r.status_code == requests.codes.forbidden and retry == True:
-            if self.user_token is not None:
-                self.get_utoken(self.user_token)
-                return self.get_phone_data_usage_new(phone_number=phone_number, retry=False)
-        else:
-            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
-            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
-
-            raise StarHubApiError(message = textwrap.dedent("""
-            *REF: {0}*
-            *FAPI/USAGE/DATA*
-
-            Data usage request failed
-
-            Request response code: {1}
-
             Response body:
             ```{2}```
             """.format(ref_code, r.status_code, r.text)),

@@ -43,8 +43,9 @@ def usage_handler(bot, update, args):
         else:
             try:
                 # Send selected data usage
-                usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
-                                                      phone_number=int(args[0]))
+                user_token = api.get_user_token(retry = True)
+                u_token = api.get_utoken(user_token, retry = True)
+                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
 
                 formatted_str = format_usage_message(usage_dict)
 
@@ -69,8 +70,9 @@ def history_handler(bot, update, args):
         else:
             try:
                 # Send selected data usage history
-                usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()),
-                                                      phone_number=int(args[0]))
+                user_token = api.get_user_token(retry = True)
+                u_token = api.get_utoken(user_token, retry = True)
+                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
 
                 formatted_str = format_usage_history_message(usage_dict)
 
@@ -96,7 +98,9 @@ def callback_handler(bot, update):
         message_id=query.message.message_id)
 
     try:
-        usage_dict = api.get_phone_data_usage(utoken=api.get_utoken(api.get_user_token()), phone_number=query.data[2:])
+        user_token = api.get_user_token(retry = True)
+        u_token = api.get_utoken(user_token, retry = True)
+        usage_dict = api.get_phone_data_usage(u_token, phone_number=query.data[2:], retry = True)
 
         callback_type = query.data[:2]
 
