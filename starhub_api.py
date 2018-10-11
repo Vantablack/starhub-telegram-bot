@@ -43,7 +43,7 @@ class StarHubApi:
 
         r = requests.post(self.msso_login_url, headers=headers, json=mapp_body_dict)
 
-        if r.status_code != requests.codes.ok:
+        if r.status_code == requests.codes.ok:
             res_json = r.json()
             self.user_token = res_json.get('user_token', None)
             return res_json.get('user_token', None)
