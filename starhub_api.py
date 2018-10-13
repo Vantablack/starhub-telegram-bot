@@ -1,5 +1,5 @@
 """
-Based on StarHub's mobile application (iOS v4.4.7) as at 26 July 2018
+Based on StarHub's mobile application (iOS v4.6.0) as at 14 October 2018
 """
 import textwrap
 import uuid
@@ -21,7 +21,7 @@ class StarHubApi:
     fapi_all_usage_url = 'https://fapi.starhub.com/MyStarhub/usage?type=local'
     fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?type=LOCAL'
     user_agent_str = 'fe11e865d2af0b5978b4ecdd3d5441bc'
-    x_sh_msa_version = '4.4.7'  # Corresponds to the StarHub's iOS app version
+    x_sh_msa_version = '4.6.0'  # Corresponds to the StarHub's iOS app version
 
     def __init__(self, user_id, user_password, logger):
         self.logger = logger
