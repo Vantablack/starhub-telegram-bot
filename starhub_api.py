@@ -3,6 +3,7 @@ Based on StarHub's mobile application (iOS v4.6.0) as at 14 October 2018
 """
 import textwrap
 import uuid
+import logging
 
 import arrow
 import requests
@@ -23,8 +24,8 @@ class StarHubApi:
     user_agent_str = 'fe11e865d2af0b5978b4ecdd3d5441bc'
     x_sh_msa_version = '4.6.0'  # Corresponds to the StarHub's iOS app version
 
-    def __init__(self, user_id, user_password, logger):
-        self.logger = logger
+    def __init__(self, user_id, user_password):
+        self.logger = logging.getLogger(__name__)
         self.user_id = user_id
         self.user_password = user_password
         self.user_token = None
@@ -59,7 +60,7 @@ class StarHubApi:
             self.user_token = res_json.get('user_token', None)
             return res_json.get('user_token', None)
         elif r.status_code != requests.codes.ok and retry == True:
-            logger.warn('Retrying get_user_token. Status code:{0}', r.status_code)
+            self.logger.warn('Retrying get_user_token. Status code:{0}', r.status_code)
             return self.get_user_token(retry = False)
         else:
             time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
@@ -114,7 +115,7 @@ class StarHubApi:
             self.u_token = token_response['IR']['UserDetails']['UToken']
             return self.u_token
         elif r.status_code != requests.codes.ok and retry == True:
-            logger.warn('Retrying get_utoken. Status code:{0}', r.status_code)
+            self.logger.warn('Retrying get_utoken. Status code:{0}', r.status_code)
             user_token = self.get_user_token();
             return self.get_utoken(user_token, retry = False)
         else:
@@ -158,7 +159,7 @@ class StarHubApi:
             usage_dict = usage_dict['IR']['MainContext']['Present']['UsageList']['DataUsages']['UsageDetail']
             return usage_dict
         elif r.status_code != requests.codes.ok and retry == True:
-            logger.warn('Retrying get_phone_data_usage. Status code:{0}', r.status_code)
+            self.logger.warn('Retrying get_phone_data_usage. Status code:{0}', r.status_code)
             utoken = self.get_utoken(self.get_user_token())
             return self.get_phone_data_usage(utoken, phone_number, retry = False)
         else:
