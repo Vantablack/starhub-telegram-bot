@@ -217,4 +217,5 @@ fabric.properties
 ##### Custom #####
 /mitmproxy-flows
 /testing-codes
+/src/testing-codes
 config.json
