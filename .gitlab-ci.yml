@@ -4,7 +4,7 @@ build_image:
   - docker:dind
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.gitlab.com
-    - docker build -t registry.gitlab.com/Vantablack/starhub-telegram-bot .
-    - docker push registry.gitlab.com/Vantablack/starhub-telegram-bot:latest
+    - docker build -t registry.gitlab.com/vantablack/starhub-telegram-bot .
+    - docker push registry.gitlab.com/vantablack/starhub-telegram-bot:latest
   only:
     - master
