@@ -1,0 +1,8 @@
+version: '3'
+services:
+  starhub-tg-bot:
+    build: '.'
+    image: starhub-tg-bot:latest
+    container_name: starhub-tg-bot
+    volumes:
+      - './config:/app/config:ro'

@@ -1,16 +1,19 @@
 version: '3'
+
 services:
   starhub-tg-bot:
-    build: '.'
-    image: starhub-tg-bot:latest
+    # build: '.'
+    image: registry.gitlab.com/vantablack/starhub-telegram-bot:latest
     container_name: starhub-tg-bot
     volumes:
       - './config:/app/config:ro'
-   environment:
-     - VIRTUAL_HOST=bot.chongyaowei.me
-     - LETSENCRYPT_HOST=bot.chongyaowei.me
-     - LETSENCRYPT_EMAIL=chongyaowei@gmail.com
-networks:
- default:
-   external:
-     name: webproxy
+    # networks:
+    #   - traefik-proxy
+    # labels:
+    #   - "traefik.frontend.rule=Host:yourdomain.com"
+    #   - "traefik.enable=true"
+    #   - "traefik.port=80"
+    #   - "traefik.docker.network=traefik-proxy"
+# networks:
+#   traefik-proxy:
+#     external: true
