@@ -3,6 +3,7 @@
 import json
 import logging
 import textwrap
+import sys
 
 import arrow
 from collections import OrderedDict
@@ -25,14 +26,15 @@ with open('config/config.json', 'r') as f:
 api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'])
 
 
-def start_handler(bot, update):
+def start_handler(update, context):
     text = ["*Here's a few commands that you can use:*"]
     for number in config['phone_numbers']:
         text.append("/usage {}".format(str(number)))
     update.message.reply_text('\n'.join(text), parse_mode='Markdown')
 
 
-def usage_handler(bot, update, args):
+def usage_handler(update, context):
+    args = context.args
     # Handle empty arguments
     if not args:
         callback_type = 'u-'
@@ -63,7 +65,8 @@ def usage_handler(bot, update, args):
                 update.message.reply_text(text="Unexpected request exception")
 
 
-def history_handler(bot, update, args):
+def history_handler(update, context):
+    args = context.args
     # Handle empty arguments
     if not args:
         callback_type = 'h-'
@@ -94,15 +97,13 @@ def history_handler(bot, update, args):
                 update.message.reply_text(text="Unexpected request exception")
 
 
-def callback_handler(bot, update):
+def callback_handler(update, context):
     query = update.callback_query
 
     # Show loading message
-    bot.edit_message_text(
+    query.edit_message_text(
         text='Please wait... ✋',
-        parse_mode='Markdown',
-        chat_id=query.message.chat_id,
-        message_id=query.message.message_id)
+        parse_mode='Markdown')
 
     try:
         user_token = api.get_user_token(retry = True)
@@ -130,16 +131,16 @@ def callback_handler(bot, update):
         update.message.reply_text(text="Unexpected request exception")
 
     # Delete loading message
-    bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
+    query.message.delete()
 
     # Show inline keyboard again
     callback_type = query.data[:2]
     send_inline_keyboard(callback_type, query.message)
 
 
-def error_handler(bot, update, error):
+def error_handler(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, error)
+    logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 
 def format_usage_message(usage_dict):
@@ -164,10 +165,10 @@ def format_usage_message(usage_dict):
     current_date = arrow.utcnow().to('Asia/Singapore')
 
     # Half closed interval [a,b)
-    total_weekdays = num_weekdays(billing_start_date, billing_end_date.replace(days=-1))
+    total_weekdays = num_weekdays(billing_start_date, billing_end_date.shift(days=-1))
 
     # Elapsed weekdays, Half closed interval [a,b)
-    elapsed_weekdays = num_weekdays(billing_start_date, current_date.replace(days=-1))
+    elapsed_weekdays = num_weekdays(billing_start_date, current_date.shift(days=-1))
 
     weekdays_left = total_weekdays - elapsed_weekdays
 
@@ -175,9 +176,9 @@ def format_usage_message(usage_dict):
     # (total data left + data used today) / num of weekdays (inclusive of today)
     # only add the data used today if today is a weekday (weekday() not 5 or 6)
     if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
-        avg_data_mb = float((usage_dict['N-UsageDifference'])) / weekdays_left
+        avg_data_mb = float((usage_dict['N-UsageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
     else:
-        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(usage_dict['C-TodayUsage'])) / weekdays_left
+        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(usage_dict['C-TodayUsage'])) / (weekdays_left if (weekdays_left > 0) else 1)
 
     usage_dict['C-AvgData'] = avg_data_mb
     usage_dict['C-AvgDataUOM'] = 'MB'
@@ -301,7 +302,7 @@ def mb_to_gb(mb_data):
 
 def main():
     # Create the Updater and pass it your bot's token.
-    updater = Updater(config['telegram_token'])
+    updater = Updater(config['telegram_token'], use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(

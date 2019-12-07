@@ -21,8 +21,8 @@ class StarHubApi:
     fapi_login_url = 'https://fapi.starhub.com/MyStarhub/login/esso'
     fapi_all_usage_url = 'https://fapi.starhub.com/MyStarhub/usage?type=local'
     fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?type=LOCAL'
-    user_agent_str = 'fe11e865d2af0b5978b4ecdd3d5441bc'
-    x_sh_msa_version = '4.6.0'  # Corresponds to the StarHub's iOS app version
+    user_agent_str = '870330a7f6fe26b489e0f353753504ad'
+    x_sh_msa_version = '5.1.5'  # Corresponds to the StarHub's iOS app version
 
     def __init__(self, user_id, user_password):
         self.logger = logging.getLogger(__name__)
@@ -89,24 +89,21 @@ class StarHubApi:
 
         headers = {
             'User-Agent': self.user_agent_str,
-            'Content-Type': 'text/xml'
+            'Content-Type': 'application/json'
         }
 
-        request_xml_dict = {
-            'Logins': {
-                '@xmlns': 'http://www.starhub.com/FAPI_Logins',
-                'ESSOLogin': {
-                    'vctk3': user_token,
-                    'LoginId': self.user_id,
-                    'SiteId': 'mystarhub',
-                    'SiteKey': '1q23TypKwgba7984'
-                }
+        esso_body_dict = {
+            'essoLogin': {
+                "loginId": self.user_id,
+                "siteId": "mystarhub",
+                "siteKey": "1q23TypKwgba7984",
+                "vctk3": user_token
             }
         }
 
         r = requests.post(self.fapi_login_url,
                           headers=headers,
-                          data=xmltodict.unparse(request_xml_dict),
+                          json=esso_body_dict,
                           timeout=10)
         if r.status_code == requests.codes.ok:
             token_response = xmltodict.parse(r.text, process_namespaces=True, namespaces={
