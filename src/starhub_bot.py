@@ -4,12 +4,14 @@ import json
 import logging
 import textwrap
 import sys
+import tempfile
 
 import arrow
 from dateutil import rrule
 from requests import RequestException
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
+from matplotlib import pyplot as plt
 
 from starhub_api import StarHubApi
 from starhub_api import StarHubApiError
@@ -80,28 +82,12 @@ def history_handler(update, context):
                 u_token = api.get_utoken(user_token, retry = True)
                 usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
 
-                # formatted_str = format_usage_history_message(usage_dict)
-                daily_usage = usage_dict['DailyUsage']['Day']
-                # bar_x_positions = []
-                bar_heights = []
-                bar_labels = []
+                formatted_str = format_usage_history_message(usage_dict)
 
-                for usage in list(daily_usage.items()):
-                    date = arrow.get(usage['UsageDate'])
-                    bar_heights.append(float(usage['Usage']))
-                    bar_labels.append(date.format('DD/MM'))
-                
-                plt.bar(range(len(bar_heights)), height=bar_heights)
-                plt.xticks(range(len(bar_heights)), bar_labels, rotation=90)
-                # plt.savefig("mygraph.png")
-
-                with tempfile.TemporaryFile(suffix=".png") as tmpfile:
-                    fig.savefig(tmpfile, format="png") # File position is at the end of the file.
-                    tmpfile.seek(0) # Rewind the file. (0: the beginning of the file)
-                    update.message.reply_photo(chat_id=chat_id, photo=tmpfile)
-
+                # Send bar chart
+                generate_and_send_image_file(usage_dict, update)
                 # Send selected data usage
-                # update.message.reply_text(text=formatted_str, parse_mode='Markdown')
+                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
                 logger.error(ex)
                 update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
@@ -233,6 +219,31 @@ def format_usage_history_message(usage_dict):
             '{} - {} MB'.format(date.format('ddd DD/MM/YYYY'), str(usage['usage'])))
     return '\n'.join(text)
 
+def generate_and_send_image_file(usage_dict, update):
+    daily_usage = usage_dict['dailyUsage']['day']
+    bar_heights = []
+    bar_labels = []
+    for usage in daily_usage:
+        date = datetime_json_to_arrow(usage['usageDate'])
+        if usage['totalVolumeUsageUOM'] == 'KB':
+            # Convert KB to MB
+            bar_heights.append(kb_to_mb(usage['totalVolumeUsage']))
+        elif usage['totalVolumeUsageUOM'] == 'GB':
+            # Convert GB to MB
+            bar_heights.append(gb_to_mb(usage['totalVolumeUsage']))
+        else:
+            bar_heights.append(usage['totalVolumeUsage'])
+        bar_labels.append(date.format('DD/MM'))
+    
+    plt.bar(range(len(bar_heights)), height=bar_heights)
+    plt.xticks(range(len(bar_heights)), bar_labels, rotation=90)
+    plt.title('Data Usage History {}'.format(usage_dict['usageServiceId']))
+
+    with tempfile.TemporaryFile(suffix=".png") as tmpfile:
+        plt.savefig(tmpfile, format="png") # File position is at the end of the file.
+        tmpfile.seek(0) # Rewind the file. (0: the beginning of the file)
+        plt.clf()
+        update.message.reply_photo(photo=tmpfile)
 
 def send_inline_keyboard(callback_type, message):
     keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=callback_type + str(number))] for number in
