@@ -6,11 +6,11 @@ import textwrap
 import sys
 
 import arrow
-from collections import OrderedDict
 from dateutil import rrule
 from requests import RequestException
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
+from matplotlib import pyplot as plt
 
 from starhub_api import StarHubApi
 from starhub_api import StarHubApiError
@@ -81,10 +81,28 @@ def history_handler(update, context):
                 u_token = api.get_utoken(user_token, retry = True)
                 usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
 
-                formatted_str = format_usage_history_message(usage_dict)
+                # formatted_str = format_usage_history_message(usage_dict)
+                daily_usage = usage_dict['DailyUsage']['Day']
+                # bar_x_positions = []
+                bar_heights = []
+                bar_labels = []
+
+                for usage in list(daily_usage.items()):
+                    date = arrow.get(usage['UsageDate'])
+                    bar_heights.append(float(usage['Usage']))
+                    bar_labels.append(date.format('DD/MM'))
+                
+                plt.bar(range(len(bar_heights)), height=bar_heights)
+                plt.xticks(range(len(bar_heights)), bar_labels, rotation=90)
+                # plt.savefig("mygraph.png")
+
+                with tempfile.TemporaryFile(suffix=".png") as tmpfile:
+                    fig.savefig(tmpfile, format="png") # File position is at the end of the file.
+                    tmpfile.seek(0) # Rewind the file. (0: the beginning of the file)
+                    update.message.reply_photo(chat_id=chat_id, photo=tmpfile)
 
                 # Send selected data usage
-                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
+                # update.message.reply_text(text=formatted_str, parse_mode='Markdown')
             except StarHubApiError as ex:
                 logger.error(ex)
                 update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
@@ -144,23 +162,18 @@ def error_handler(update, context):
 
 
 def format_usage_message(usage_dict):
-    if len(usage_dict['DailyUsage']['Day']) > 0:
-        if isinstance(usage_dict['DailyUsage']['Day'], OrderedDict):
-            usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day']['Usage']
-        else:
-            usage_dict['C-TodayUsage'] = usage_dict['DailyUsage']['Day'][-1]['Usage']
-    else:
-        usage_dict['C-TodayUsage'] = str(0)
+    daily_usage = usage_dict['dailyUsage']['day']
+    usage_dict['C-todayUsage'] = daily_usage[-1]['usage']
 
     # Parsing last processed date time
-    usage_dict['C-LastProcessedDateTime'] = arrow.get(usage_dict['LastProcessedDateTime']).format(
+    usage_dict['C-lastProcessedDateTime'] = datetime_json_to_arrow(usage_dict['lastProcessedDateTime']).format(
         'DD/MM/YYYY HH:mm:ss A')
 
     # Convert data units from GB/KB to MB (with 'N-' prefix)
-    normalize_data_uom(usage_dict)
+    usage_dict = normalize_data_uom(usage_dict)
 
     # Adding analysis
-    billing_start_date = arrow.get(usage_dict['FromDateTime'])
+    billing_start_date = datetime_json_to_arrow(usage_dict['fromDateTime'])
     billing_end_date = billing_start_date.shift(months=1)
     current_date = arrow.utcnow().to('Asia/Singapore')
 
@@ -176,49 +189,49 @@ def format_usage_message(usage_dict):
     # (total data left + data used today) / num of weekdays (inclusive of today)
     # only add the data used today if today is a weekday (weekday() not 5 or 6)
     if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
-        avg_data_mb = float((usage_dict['N-UsageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
+        avg_data_mb = float((usage_dict['N-usageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
     else:
-        avg_data_mb = (float(usage_dict['N-UsageDifference']) + float(usage_dict['C-TodayUsage'])) / (weekdays_left if (weekdays_left > 0) else 1)
+        avg_data_mb = (float(usage_dict['N-usageDifference']) + float(usage_dict['C-todayUsage'])) / (weekdays_left if (weekdays_left > 0) else 1)
 
-    usage_dict['C-AvgData'] = avg_data_mb
-    usage_dict['C-AvgDataUOM'] = 'MB'
-    usage_dict['C-WeekdayLeft'] = weekdays_left
+    usage_dict['C-avgData'] = avg_data_mb
+    usage_dict['C-avgDataUOM'] = 'MB'
+    usage_dict['C-weekdayLeft'] = weekdays_left
 
-    usage_dict['C-ProgressBar'] = generate_progress_bar(float(usage_dict['N-TotalUsage']),
-                                                        float(usage_dict['N-TotalFreeUnits']),
-                                                        suffix=str(usage_dict['UsagePercentage']) + '%',
+    usage_dict['C-progressBar'] = generate_progress_bar(float(usage_dict['N-totalUsage']),
+                                                        float(usage_dict['N-totalFreeUnits']),
+                                                        suffix=str(usage_dict['usagePercentage']) + '%',
                                                         length=20)
 
     # Markdown formatting for Telegram message formatting
     telegram_format_message = textwrap.dedent("""
-        *Data Usage for {UsageServiceId}*
+        *Data Usage for {usageServiceId}*
         
-        *{C-ProgressBar}*
-        Total: *{TotalFreeUnits} {TotalFreeUnitsUOM}*
-        Used: *{TotalUsage} {TotalUsageUOM}*
-        Left: *{UsageDifference} {DifferenceUOM}*
-        Used Today: *{C-TodayUsage} MB*
+        *{C-progressBar}*
+        Total: *{totalFreeUnits} {totalFreeUnitsUOM}*
+        Used: *{totalUsage} {totalUsageUOM}*
+        Left: *{usageDifference} {differenceUOM}*
+        Used Today: *{C-todayUsage} MB*
         
-        *{C-WeekdayLeft}* weekdays left (including today)
+        *{C-weekdayLeft}* weekdays left (including today)
         
         Average data usage per day:
-        *{C-AvgData:.2f} {C-AvgDataUOM}*/day
+        *{C-avgData:.2f} {C-avgDataUOM}*/day
         
-        {C-LastProcessedDateTime}
+        {C-lastProcessedDateTime}
         """.format(**usage_dict))
 
     return telegram_format_message
 
 
 def format_usage_history_message(usage_dict):
-    daily_usage = usage_dict['DailyUsage']['Day']
+    daily_usage = usage_dict['dailyUsage']['day']
 
     text = ['*Usage History (Day)*', '']
 
     for usage in daily_usage:
-        date = arrow.get(usage['UsageDate'])
+        date = datetime_json_to_arrow(usage['usageDate'])
         text.append(
-            '{} - {} MB'.format(date.format('ddd DD/MM/YYYY'), str(usage['Usage'])))
+            '{} - {} MB'.format(date.format('ddd DD/MM/YYYY'), str(usage['usage'])))
     return '\n'.join(text)
 
 
@@ -234,6 +247,16 @@ def send_inline_keyboard(callback_type, message):
         message.reply_text(text='[Current data usage] Please choose:', reply_markup=reply_markup)
 
 
+def datetime_json_to_arrow(date_json):
+    date_string = '{}/{}/{} {}:{}:{}'.format(
+                                date_json['day'],
+                                date_json['month'],
+                                date_json['year'],
+                                date_json['hour'],
+                                date_json['minute'],
+                                date_json['second'])
+    return arrow.get(date_string, 'D/M/YYYY h:m:s')
+
 # https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch03s06.html
 def num_weekdays(start, end):
     weekends = 5, 6  # saturdays and sundays/history
@@ -244,25 +267,26 @@ def num_weekdays(start, end):
 
 def normalize_data_uom(usage_dict):
     values_to_normalize = {
-        'Usage': 'UOM',
-        'FreeUnits': 'FreeUnitsUOM',
-        'TotalUsage': 'TotalUsageUOM',
-        'TotalFreeUnits': 'TotalFreeUnitsUOM',
-        'UsageDifference': 'DifferenceUOM',
-        'DataShareUnits': 'DataShareUnitsUOM',
-        'UsageDataShare': 'UsageDataShareUOM',
-        'FreeUsage': 'FreeUsageUOM'
+        'usage': 'uom',
+        'freeUnits': 'freeUnitsUOM',
+        'totalUsage': 'totalUsageUOM',
+        'totalFreeUnits': 'totalFreeUnitsUOM',
+        'usageDifference': 'differenceUOM',
+        'dataShareUnits': 'dataShareUnitsUOM',
+        'usageDataShare': 'usageDataShareUOM',
+        'freeUsage': 'freeUsageUOM'
     }
 
     # Convert to MB
     for value in values_to_normalize:
-        if usage_dict.get(values_to_normalize[value], False) and usage_dict[values_to_normalize[value]] == 'KB':
+        current_uom = usage_dict[values_to_normalize[value]]
+        if (current_uom is not None) and (current_uom == 'KB'):
             # Convert KB to MB
             usage_dict['N-' + value] = kb_to_mb(usage_dict[value])
-        elif usage_dict.get(values_to_normalize[value], False) and usage_dict[values_to_normalize[value]] == 'GB':
+        elif (current_uom is not None) and (current_uom == 'GB'):
             # Convert GB to MB
             usage_dict['N-' + value] = gb_to_mb(usage_dict[value])
-        elif usage_dict.get(values_to_normalize[value], False):
+        elif (current_uom is not None):
             usage_dict['N-' + value] = usage_dict[value]
 
     return usage_dict

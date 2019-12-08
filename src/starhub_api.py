@@ -1,5 +1,5 @@
 """
-Based on StarHub's mobile application (iOS v4.6.0) as at 14 October 2018
+Based on StarHub's mobile application (iOS v5.1.5) as at 8 December 2019
 """
 import textwrap
 import uuid
@@ -7,7 +7,6 @@ import logging
 
 import arrow
 import requests
-import xmltodict
 
 class StarHubApiError(ValueError):
     """Raise this when there is an error with the StarHub API"""
@@ -20,7 +19,7 @@ class StarHubApi:
     msso_login_url = 'https://login.starhubgee.com.sg/msso/mapp/api/login'
     fapi_login_url = 'https://fapi.starhub.com/MyStarhub/login/esso'
     fapi_all_usage_url = 'https://fapi.starhub.com/MyStarhub/usage?type=local'
-    fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?type=LOCAL'
+    fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?usageOption=LOCAL'
     user_agent_str = '870330a7f6fe26b489e0f353753504ad'
     x_sh_msa_version = '5.1.5'  # Corresponds to the StarHub's iOS app version
 
@@ -35,7 +34,7 @@ class StarHubApi:
         """Retrieve user_token from MSSO login endpoint
 
         Note:
-            Will cache the user_token as it will not expire (tested: 11 October 2018)
+            Will cache the user_token as it will not expire (tested: 8 December 2019)
         """
         if self.user_token:
             return self.user_token
@@ -47,7 +46,8 @@ class StarHubApi:
         }
 
         headers = {
-            'User-Agent': self.user_agent_str
+            'User-Agent': self.user_agent_str,
+            'Accept': 'application/json'
         }
 
         r = requests.post(self.msso_login_url,
@@ -89,7 +89,8 @@ class StarHubApi:
 
         headers = {
             'User-Agent': self.user_agent_str,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         }
 
         esso_body_dict = {
@@ -106,10 +107,8 @@ class StarHubApi:
                           json=esso_body_dict,
                           timeout=10)
         if r.status_code == requests.codes.ok:
-            token_response = xmltodict.parse(r.text, process_namespaces=True, namespaces={
-                'http://www.starhub.com/FrontAPI': None
-            })
-            self.u_token = token_response['IR']['UserDetails']['UToken']
+            res_json = r.json()
+            self.u_token = res_json['userDetails']['utoken']
             return self.u_token
         elif r.status_code != requests.codes.ok and retry == True:
             self.logger.warn('Retrying get_utoken. Status code:{0}', r.status_code)
@@ -133,28 +132,21 @@ class StarHubApi:
             user_message = '*Errored. Reference code:* `{0}`'.format(ref_code))
 
     def get_phone_data_usage(self, utoken, phone_number, retry = False):
-        """Get a single phone number's data usage
-        """
+        """Get a single phone number's data usage"""
 
         headers = {
             'Authorization': utoken,
+            'Accept': 'application/json',
             'User-Agent': self.user_agent_str,
             'x-sh-msa-version': self.x_sh_msa_version
         }
-
         r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number),
                         headers=headers,
                         timeout=10)
 
         if r.status_code == requests.codes.ok:
-            # Transform XML to dict
-            # see https://github.com/martinblech/xmltodict
-            usage_dict = xmltodict.parse(r.text, process_namespaces=True, namespaces={
-                'http://www.starhub.com/FrontAPI': None,
-                'http://www.starhub.com/FAPI_Usage': None
-            })
-            usage_dict = usage_dict['IR']['MainContext']['Present']['UsageList']['DataUsages']['UsageDetail']
-            return usage_dict
+            res_json = r.json()
+            return res_json['mainContext']['present']['any'][0]['dataUsages']['usageDetail'][0]
         elif r.status_code != requests.codes.ok and retry == True:
             self.logger.warn('Retrying get_phone_data_usage. Status code:{0}', r.status_code)
             utoken = self.get_utoken(self.get_user_token())
