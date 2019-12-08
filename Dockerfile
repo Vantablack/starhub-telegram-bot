@@ -8,7 +8,7 @@
 # Adding -u flag for Python:
 # https://stackoverflow.com/questions/29663459/python-app-does-not-print-anything-when-running-detached-in-docker
 
-FROM python:3 as base
+FROM python:3-slim as base
 
 FROM base as builder
 LABEL stage=removeme
@@ -17,7 +17,7 @@ WORKDIR /install
 COPY requirements.txt /requirements.txt
 RUN pip install --user --no-warn-script-location -r /requirements.txt
 
-FROM python:alpine 
+FROM base
 COPY --from=builder /root/.local/ /usr/local
 COPY src /app
 WORKDIR /app
