@@ -10,7 +10,6 @@ from dateutil import rrule
 from requests import RequestException
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
-from matplotlib import pyplot as plt
 
 from starhub_api import StarHubApi
 from starhub_api import StarHubApiError
