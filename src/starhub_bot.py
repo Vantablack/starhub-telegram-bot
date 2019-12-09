@@ -16,8 +16,8 @@ from matplotlib import pyplot as plt
 from starhub_api import StarHubApi
 from starhub_api import StarHubApiError
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger('starhub_bot')
 
 # Loading of config.json
 with open('config/config.json', 'r') as f:
@@ -46,9 +46,9 @@ def usage_handler(update, context):
         else:
             try:
                 # Send selected data usage
-                user_token = api.get_user_token(retry = True)
-                u_token = api.get_utoken(user_token, retry = True)
-                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
+                user_token = api.get_user_token(retry=True)
+                u_token = api.get_utoken(user_token, retry=True)
+                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry=True)
 
                 formatted_str = format_usage_message(usage_dict)
 
@@ -60,7 +60,7 @@ def usage_handler(update, context):
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
-            except: # catch *all* exceptions
+            except:  # catch *all* exceptions
                 ex = sys.exc_info()[0]
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
@@ -78,9 +78,9 @@ def history_handler(update, context):
         else:
             try:
                 # Send selected data usage history
-                user_token = api.get_user_token(retry = True)
-                u_token = api.get_utoken(user_token, retry = True)
-                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry = True)
+                user_token = api.get_user_token(retry=True)
+                u_token = api.get_utoken(user_token, retry=True)
+                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry=True)
 
                 formatted_str = format_usage_history_message(usage_dict)
 
@@ -94,7 +94,7 @@ def history_handler(update, context):
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
-            except: # catch *all* exceptions
+            except:  # catch *all* exceptions
                 ex = sys.exc_info()[0]
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
@@ -109,15 +109,18 @@ def callback_handler(update, context):
         parse_mode='Markdown')
 
     try:
-        user_token = api.get_user_token(retry = True)
-        u_token = api.get_utoken(user_token, retry = True)
-        usage_dict = api.get_phone_data_usage(u_token, phone_number=query.data[2:], retry = True)
+        user_token = api.get_user_token(retry=True)
+        u_token = api.get_utoken(user_token, retry=True)
+        usage_dict = api.get_phone_data_usage(u_token, phone_number=query.data[2:], retry=True)
 
         callback_type = query.data[:2]
 
         if callback_type == 'u-':
             formatted_str = format_usage_message(usage_dict)
         else:
+            # Send bar chart
+            generate_and_send_image_file(usage_dict, query)
+            # Send selected data usage
             formatted_str = format_usage_history_message(usage_dict)
 
         # Send selected data usage
@@ -126,9 +129,9 @@ def callback_handler(update, context):
         logger.error(ex)
         query.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
     except RequestException as ex:
-            logger.error(ex)
-            update.message.reply_text(text="Unexpected request exception")
-    except: # catch *all* exceptions
+        logger.error(ex)
+        update.message.reply_text(text="Unexpected request exception")
+    except:  # catch *all* exceptions
         ex = sys.exc_info()[0]
         logger.error(ex)
         update.message.reply_text(text="Unexpected request exception")
@@ -143,7 +146,7 @@ def callback_handler(update, context):
 
 def error_handler(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
+    logger.error('Telegram error handler: "%s"', context.error)
 
 
 def format_usage_message(usage_dict):
@@ -176,7 +179,8 @@ def format_usage_message(usage_dict):
     if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
         avg_data_mb = float((usage_dict['N-usageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
     else:
-        avg_data_mb = (float(usage_dict['N-usageDifference']) + float(usage_dict['C-todayUsage'])) / (weekdays_left if (weekdays_left > 0) else 1)
+        avg_data_mb = (float(usage_dict['N-usageDifference']) + float(usage_dict['C-todayUsage'])) / (
+            weekdays_left if (weekdays_left > 0) else 1)
 
     usage_dict['C-avgData'] = avg_data_mb
     usage_dict['C-avgDataUOM'] = 'MB'
@@ -219,6 +223,7 @@ def format_usage_history_message(usage_dict):
             '{} - {} MB'.format(date.format('ddd DD/MM/YYYY'), str(usage['usage'])))
     return '\n'.join(text)
 
+
 def generate_and_send_image_file(usage_dict, update):
     daily_usage = usage_dict['dailyUsage']['day']
     bar_heights = []
@@ -234,16 +239,17 @@ def generate_and_send_image_file(usage_dict, update):
         else:
             bar_heights.append(usage['totalVolumeUsage'])
         bar_labels.append(date.format('DD/MM'))
-    
+
     plt.bar(range(len(bar_heights)), height=bar_heights)
     plt.xticks(range(len(bar_heights)), bar_labels, rotation=90)
     plt.title('Data Usage History {}'.format(usage_dict['usageServiceId']))
 
     with tempfile.TemporaryFile(suffix=".png") as tmpfile:
-        plt.savefig(tmpfile, format="png") # File position is at the end of the file.
-        tmpfile.seek(0) # Rewind the file. (0: the beginning of the file)
+        plt.savefig(tmpfile, format="png")  # File position is at the end of the file.
+        tmpfile.seek(0)  # Rewind the file. (0: the beginning of the file)
         plt.clf()
         update.message.reply_photo(photo=tmpfile)
+
 
 def send_inline_keyboard(callback_type, message):
     keyboard_btns = [[InlineKeyboardButton(str(number), callback_data=callback_type + str(number))] for number in
@@ -259,13 +265,14 @@ def send_inline_keyboard(callback_type, message):
 
 def datetime_json_to_arrow(date_json):
     date_string = '{}/{}/{} {}:{}:{}'.format(
-                                date_json['day'],
-                                date_json['month'],
-                                date_json['year'],
-                                date_json['hour'],
-                                date_json['minute'],
-                                date_json['second'])
+        date_json['day'],
+        date_json['month'],
+        date_json['year'],
+        date_json['hour'],
+        date_json['minute'],
+        date_json['second'])
     return arrow.get(date_string, 'D/M/YYYY h:m:s')
+
 
 # https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch03s06.html
 def num_weekdays(start, end):
