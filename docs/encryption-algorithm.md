@@ -114,6 +114,8 @@ private MSSOLoginResponse a() {
 
 TODO: Test sample implementation in Python
 
-Someone has already done the implementation in Python thanks to this article: http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html [archive.org link here](https://web.archive.org/web/*/http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html)
+Someone has already done the implementation in Python thanks to this article: 
+[http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html](http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html)
+[archive.org link here](https://web.archive.org/web/*/http://www.tmarthal.com/2016/07/using-pycrypto-with-spring-cryptospring.html)
 
 The fork of the GitHub Gist is available here: https://gist.github.com/Vantablack/21ec8f66974c5b22627d120671a71d9c

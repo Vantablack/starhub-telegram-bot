@@ -203,7 +203,7 @@ def format_usage_message(usage_dict):
         
         *{C-weekdayLeft}* weekdays left (including today)
         
-        Average data usage per day:
+        Estimated limit per day:
         *{C-avgData:.2f} {C-avgDataUOM}*/day
         
         {C-lastProcessedDateTime}
