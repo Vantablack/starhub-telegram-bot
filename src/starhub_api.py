@@ -1,5 +1,5 @@
 """
-Based on StarHub's mobile application (iOS v5.1.5) as at 8 December 2019
+Based on StarHub's mobile application (iOS v5.1.15) as at 9 May 2020
 """
 import textwrap
 import uuid
@@ -24,7 +24,7 @@ class StarHubApi:
     fapi_all_usage_url = 'https://fapi.starhub.com/MyStarhub/usage?type=local'
     fapi_specific_usage_url = 'https://fapi.starhub.com/MyStarhub/usage/data/{phone_number}?usageOption=LOCAL'
     user_agent_str = '870330a7f6fe26b489e0f353753504ad'
-    x_sh_msa_version = '5.1.5'  # Corresponds to the StarHub's iOS app version
+    x_sh_msa_version = '5.1.15'  # Corresponds to the StarHub's iOS app version
 
     def __init__(self, user_id, user_password):
         self.logger = logging.getLogger('starhub_api')
@@ -93,7 +93,8 @@ class StarHubApi:
         headers = {
             'User-Agent': self.user_agent_str,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'x-sh-msa-version': self.x_sh_msa_version
         }
 
         esso_body_dict = {
