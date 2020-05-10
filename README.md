@@ -57,6 +57,8 @@ docker run -d --rm --name starhub-bot -v `pwd`/config:/app/config:ro starhub-tg-
 
 I am currently using Pipenv to manage the packages required for this project.
 
+**Pipenv sets the Python version to 3.6**.
+
 Follow [this guide](https://pipenv-fork.readthedocs.io/en/latest/install.html#installing-pipenv)
 to install Pipenv.
 

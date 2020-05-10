@@ -7,15 +7,18 @@
 #
 # Adding -u flag for Python:
 # https://stackoverflow.com/questions/29663459/python-app-does-not-print-anything-when-running-detached-in-docker
+#
+# Pipenv
+# https://pythonspeed.com/articles/pipenv-docker/
 
-FROM python:3-slim as base
+FROM python:3.6-slim as base
 
 FROM base as builder
 LABEL stage=removeme
-RUN mkdir /install
-WORKDIR /install
-COPY requirements.txt /requirements.txt
-RUN pip install --user --no-warn-script-location -r /requirements.txt
+COPY Pipfile* /tmp/
+RUN pip install pipenv
+RUN cd /tmp && pipenv lock --requirements > requirements.txt
+RUN pip install --user --no-warn-script-location -r /tmp/requirements.txt
 
 FROM base
 COPY --from=builder /root/.local/ /usr/local
