@@ -12,16 +12,11 @@
 # https://pythonspeed.com/articles/pipenv-docker/
 
 FROM python:3.6-slim as base
-
 FROM base as builder
-LABEL stage=removeme
 COPY Pipfile* /tmp/
 RUN pip install pipenv
 RUN cd /tmp && pipenv lock --requirements > requirements.txt
 RUN pip install --user --no-warn-script-location -r /tmp/requirements.txt
-
-FROM base
-COPY --from=builder /root/.local/ /usr/local
 COPY src /app
 WORKDIR /app
 VOLUME /app/config
