@@ -14,9 +14,10 @@ from telegram.ext import Updater, CommandHandler, Filters, CallbackQueryHandler
 from matplotlib import pyplot as plt
 
 from starhub_api import StarHubApi
-from starhub_api import StarHubApiError
+from starhub_api import StarHubApiException
 
-logging.basicConfig(format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger('starhub_bot')
 
 # Loading of config.json
@@ -24,7 +25,8 @@ with open('config/config.json', 'r') as f:
     config = json.load(f)
 
 # Initializing StarHubApi using config.json
-api = StarHubApi(user_id=config['user_id'], user_password=config['user_password'])
+api = StarHubApi(user_id=config['user_id'],
+                 user_password=config['user_password'])
 
 
 def start_handler(update, context):
@@ -35,6 +37,7 @@ def start_handler(update, context):
 
 
 def usage_handler(update, context):
+    """Callback function for 'usage' command"""
     args = context.args
     # Handle empty arguments
     if not args:
@@ -46,17 +49,20 @@ def usage_handler(update, context):
         else:
             try:
                 # Send selected data usage
-                user_token = api.get_user_token(retry=True)
-                u_token = api.get_utoken(user_token, retry=True)
-                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry=True)
+                user_token = api.get_user_token()
+                u_token = api.get_utoken(user_token)
+                usage_dict = api.get_phone_data_usage(
+                    u_token, phone_number=int(args[0]))
 
                 formatted_str = format_usage_message(usage_dict)
 
                 # Send selected data usage
-                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
-            except StarHubApiError as ex:
+                update.message.reply_text(
+                    text=formatted_str, parse_mode='Markdown')
+            except StarHubApiException as ex:
                 logger.error(ex)
-                update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
+                update.message.reply_text(
+                    text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
@@ -67,6 +73,7 @@ def usage_handler(update, context):
 
 
 def history_handler(update, context):
+    """Callback function for 'history' command"""
     args = context.args
     # Handle empty arguments
     if not args:
@@ -78,19 +85,22 @@ def history_handler(update, context):
         else:
             try:
                 # Send selected data usage history
-                user_token = api.get_user_token(retry=True)
-                u_token = api.get_utoken(user_token, retry=True)
-                usage_dict = api.get_phone_data_usage(u_token, phone_number=int(args[0]), retry=True)
+                user_token = api.get_user_token()
+                u_token = api.get_utoken(user_token)
+                usage_dict = api.get_phone_data_usage(
+                    u_token, phone_number=int(args[0]))
 
                 formatted_str = format_usage_history_message(usage_dict)
 
                 # Send bar chart
                 generate_and_send_image_file(usage_dict, update)
                 # Send selected data usage
-                update.message.reply_text(text=formatted_str, parse_mode='Markdown')
-            except StarHubApiError as ex:
+                update.message.reply_text(
+                    text=formatted_str, parse_mode='Markdown')
+            except StarHubApiException as ex:
                 logger.error(ex)
-                update.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
+                update.message.reply_text(
+                    text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
@@ -101,6 +111,7 @@ def history_handler(update, context):
 
 
 def callback_handler(update, context):
+    """Callback function for CallbackQueryHandler"""
     query = update.callback_query
 
     # Show loading message
@@ -109,9 +120,10 @@ def callback_handler(update, context):
         parse_mode='Markdown')
 
     try:
-        user_token = api.get_user_token(retry=True)
-        u_token = api.get_utoken(user_token, retry=True)
-        usage_dict = api.get_phone_data_usage(u_token, phone_number=query.data[2:], retry=True)
+        user_token = api.get_user_token()
+        u_token = api.get_utoken(user_token)
+        usage_dict = api.get_phone_data_usage(
+            u_token, phone_number=query.data[2:])
 
         callback_type = query.data[:2]
 
@@ -125,9 +137,10 @@ def callback_handler(update, context):
 
         # Send selected data usage
         query.message.reply_text(text=formatted_str, parse_mode='Markdown')
-    except StarHubApiError as ex:
+    except StarHubApiException as ex:
         logger.error(ex)
-        query.message.reply_text(text=str(ex.user_message), parse_mode='Markdown')
+        query.message.reply_text(
+            text=str(ex.user_message), parse_mode='Markdown')
     except RequestException as ex:
         logger.error(ex)
         update.message.reply_text(text="Unexpected request exception")
@@ -166,10 +179,12 @@ def format_usage_message(usage_dict):
     current_date = arrow.utcnow().to('Asia/Singapore')
 
     # Half closed interval [a,b)
-    total_weekdays = num_weekdays(billing_start_date, billing_end_date.shift(days=-1))
+    total_weekdays = num_weekdays(
+        billing_start_date, billing_end_date.shift(days=-1))
 
     # Elapsed weekdays, Half closed interval [a,b)
-    elapsed_weekdays = num_weekdays(billing_start_date, current_date.shift(days=-1))
+    elapsed_weekdays = num_weekdays(
+        billing_start_date, current_date.shift(days=-1))
 
     weekdays_left = total_weekdays - elapsed_weekdays
 
@@ -177,7 +192,8 @@ def format_usage_message(usage_dict):
     # (total data left + data used today) / num of weekdays (inclusive of today)
     # only add the data used today if today is a weekday (weekday() not 5 or 6)
     if current_date.datetime.weekday() == 5 or current_date.datetime.weekday() == 6:
-        avg_data_mb = float((usage_dict['N-usageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
+        avg_data_mb = float(
+            (usage_dict['N-usageDifference'])) / (weekdays_left if (weekdays_left > 0) else 1)
     else:
         avg_data_mb = (float(usage_dict['N-usageDifference']) + float(usage_dict['C-todayUsage'])) / (
             weekdays_left if (weekdays_left > 0) else 1)
@@ -187,8 +203,10 @@ def format_usage_message(usage_dict):
     usage_dict['C-weekdayLeft'] = weekdays_left
 
     usage_dict['C-progressBar'] = generate_progress_bar(float(usage_dict['N-totalUsage']),
-                                                        float(usage_dict['N-totalFreeUnits']),
-                                                        suffix=str(usage_dict['usagePercentage']) + '%',
+                                                        float(
+                                                            usage_dict['N-totalFreeUnits']),
+                                                        suffix=str(
+                                                            usage_dict['usagePercentage']) + '%',
                                                         length=20)
 
     # Markdown formatting for Telegram message formatting
@@ -245,7 +263,8 @@ def generate_and_send_image_file(usage_dict, update):
     plt.title('Data Usage History {}'.format(usage_dict['usageServiceId']))
 
     with tempfile.TemporaryFile(suffix=".png") as tmpfile:
-        plt.savefig(tmpfile, format="png")  # File position is at the end of the file.
+        # File position is at the end of the file.
+        plt.savefig(tmpfile, format="png")
         tmpfile.seek(0)  # Rewind the file. (0: the beginning of the file)
         plt.clf()
         update.message.reply_photo(photo=tmpfile)
@@ -258,9 +277,11 @@ def send_inline_keyboard(callback_type, message):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if callback_type == 'h-':
-        message.reply_text(text='[Usage history] Please choose:', reply_markup=reply_markup)
+        message.reply_text(
+            text='[Usage history] Please choose:', reply_markup=reply_markup)
     else:
-        message.reply_text(text='[Current data usage] Please choose:', reply_markup=reply_markup)
+        message.reply_text(
+            text='[Current data usage] Please choose:', reply_markup=reply_markup)
 
 
 def datetime_json_to_arrow(date_json):
@@ -278,7 +299,8 @@ def datetime_json_to_arrow(date_json):
 def num_weekdays(start, end):
     weekends = 5, 6  # saturdays and sundays/history
     weekdays = [x for x in range(7) if x not in weekends]
-    days = rrule.rrule(rrule.DAILY, dtstart=start, until=end, byweekday=weekdays)
+    days = rrule.rrule(rrule.DAILY, dtstart=start,
+                       until=end, byweekday=weekdays)
     return days.count()
 
 
@@ -365,7 +387,8 @@ def main():
         updater.start_webhook(listen="",
                               port=80,
                               url_path=config.get('telegram_token'))
-        updater.bot.set_webhook(config.get('webhook_url') + config.get('telegram_token'))
+        updater.bot.set_webhook(config.get(
+            'webhook_url') + config.get('telegram_token'))
         logger.info('Bot started using webhook')
     else:
         updater.start_polling()

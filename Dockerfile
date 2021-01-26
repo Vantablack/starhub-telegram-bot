@@ -11,7 +11,7 @@
 # Pipenv
 # https://pythonspeed.com/articles/pipenv-docker/
 
-FROM python:3.6-slim as base
+FROM python:3.9-slim as base
 FROM base as builder
 COPY Pipfile* /tmp/
 RUN pip install pipenv
@@ -22,4 +22,4 @@ WORKDIR /app
 VOLUME /app/config
 # Expose port 80 for WebHook server
 EXPOSE 80
-CMD [ "python", "-u", "starhub_bot.py" ]
+CMD [ "python", "-u", "main.py" ]

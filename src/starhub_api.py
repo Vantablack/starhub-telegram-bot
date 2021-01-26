@@ -9,13 +9,24 @@ import arrow
 import requests
 
 
-class StarHubApiError(ValueError):
-    """Raise this when there is an error with the StarHub API"""
+class StarHubApiException(Exception):
+    """Raise this when there is an error with the StarHub API
 
-    def __init__(self, message, user_message=None):
+    Args:
+        http_code: HTTP Status Code associated with the error
+        api_name: Name of the API causing this exception
+        response_body: Response body of the request
+        user_message: Custom message for the user/logger
+
+    """
+
+    def __init__(self, http_code, api_name, response_body, user_message=None):
         # Call the base class constructor with the parameters it needs (Python 3+)
-        super().__init__(message)
-        self.user_message = user_message
+        self.http_code = http_code
+        self.api_name = api_name
+        self.response_body = response_body
+        self.user_message = user_message + 'HTTP Code: ' + self.http_code
+        super().__init__(self.user_message)
 
 
 class StarHubApi:
@@ -38,6 +49,9 @@ class StarHubApi:
 
         Note:
             Will cache the user_token as it will not expire (tested: 8 December 2019)
+
+        Raises:
+            StarHubApiError: Error associated with accessing StarHub's API
         """
         if self.user_token:
             return self.user_token
@@ -62,32 +76,19 @@ class StarHubApi:
             res_json = r.json()
             self.user_token = res_json.get('user_token', None)
             return res_json.get('user_token', None)
-        elif r.status_code != requests.codes.ok and retry == True:
-            self.logger.warning('Retrying get_user_token. Status code: %d', r.status_code)
-            return self.get_user_token(retry=False)
         else:
-            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
-            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
+            raise StarHubApiException(
+                r.status_code, 'MSSO/MAPP/LOGIN', r.text, 'User token request failed')
 
-            raise StarHubApiError(message=textwrap.dedent("""
-            *REF: {0}*
-            *MSSO/MAPP/LOGIN*
-            
-            User token request failed
-            
-            Request response code: {1}
-            
-            Response body:
-            ```{2}```
-            """.format(ref_code, r.status_code, r.text)),
-                                  user_message='*Errored. Reference code:* `{0}`'.format(ref_code))
-
-    def get_utoken(self, user_token, retry=False):
+    def get_utoken(self, user_token):
         """Retrieves u_token from the ESSO login endpoint
 
-        Note:
-            If another u_token is generated, the previous one will be invalidated,
-            causing a 401 Unauthorized error if used
+        If another u_token is generated, the previous one will be invalidated,
+        causing a 401 Unauthorized error. To get around this issue,
+        if 401 error code is encountered, function will reattempt request.
+
+        Raises:
+            StarHubApiError: Error associated with accessing StarHub's API
         """
 
         headers = {
@@ -114,29 +115,24 @@ class StarHubApi:
             res_json = r.json()
             self.u_token = res_json['userDetails']['utoken']
             return self.u_token
-        elif r.status_code != requests.codes.ok and retry == True:
-            self.logger.warning('Retrying get_utoken. Status code: %d', r.status_code)
-            user_token = self.get_user_token()
-            return self.get_utoken(user_token, retry=False)
+        elif r.status_code != requests.codes.ok and r.status_code == requests.codes.unauthorized:
+            self.logger.warning(
+                'Retrying get_utoken. Status code: %d', r.status_code)
+            return self.get_utoken(self.get_user_token())
         else:
-            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
-            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
+            raise StarHubApiException(
+                r.status_code, 'FAPI/LOGIN/ESSO', r.text, 'UToken request failed')
 
-            raise StarHubApiError(message=textwrap.dedent("""
-            *REF: {0}*
-            *FAPI/LOGIN/ESSO*
-            
-            UToken request failed
-            
-            Request response code: {1}
-            
-            Response body:
-            ```{2}```
-            """.format(ref_code, r.status_code, r.text)),
-                                  user_message='*Errored. Reference code:* `{0}`'.format(ref_code))
+    def get_phone_data_usage(self, utoken, phone_number):
+        """Get a single phone number's data usage
 
-    def get_phone_data_usage(self, utoken, phone_number, retry=False):
-        """Get a single phone number's data usage"""
+        If another u_token is generated, the previous one will be invalidated,
+        causing a 401 Unauthorized error. To get around this issue,
+        if 401 error code is encountered, function will reattempt request.
+
+        Raises:
+            StarHubApiError: Error associated with accessing StarHub's API
+        """
 
         headers = {
             'Authorization': utoken,
@@ -151,23 +147,11 @@ class StarHubApi:
         if r.status_code == requests.codes.ok:
             res_json = r.json()
             return res_json['mainContext']['present']['any'][0]['dataUsages']['usageDetail'][0]
-        elif r.status_code != requests.codes.ok and retry == True:
-            self.logger.warning('Retrying get_phone_data_usage. Status code: %d', r.status_code)
+        elif r.status_code != requests.codes.ok and r.status_code == requests.codes.unauthorized:
+            self.logger.warning(
+                'Retrying get_phone_data_usage. Status code: %d', r.status_code)
             utoken = self.get_utoken(self.get_user_token())
-            return self.get_phone_data_usage(utoken, phone_number, retry=False)
+            return self.get_phone_data_usage(utoken, phone_number)
         else:
-            time = arrow.utcnow().to('Asia/Singapore').format('DD-MM-YYYY HH:mm A')
-            ref_code = time + '-' + str(uuid.uuid4()).split('-')[0]
-
-            raise StarHubApiError(message=textwrap.dedent("""
-            *REF: {0}*
-            *FAPI/USAGE/DATA*
-            
-            Data usage request failed
-            
-            Request response code: {1}
-            
-            Response body:
-            ```{2}```
-            """.format(ref_code, r.status_code, r.text)),
-                                  user_message='*Errored. Reference code:* `{0}`'.format(ref_code))
+            raise StarHubApiException(
+                r.status_code, 'FAPI/USAGE/DATA', r.text, 'Data usage request failed')

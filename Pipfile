@@ -4,6 +4,9 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+pylint = "*"
+autopep8 = "*"
+rope = "*"
 
 [packages]
 requests = "*"
@@ -13,4 +16,4 @@ python-dateutil = "*"
 matplotlib = "*"
 
 [requires]
-python_version = "3.6"
+python_version = "3.9"
