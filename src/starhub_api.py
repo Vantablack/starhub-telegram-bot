@@ -1,11 +1,7 @@
 """
 Based on StarHub's mobile application (iOS v5.1.15) as at 9 May 2020
 """
-import textwrap
-import uuid
 import logging
-
-import arrow
 import requests
 
 
@@ -21,7 +17,6 @@ class StarHubApiException(Exception):
     """
 
     def __init__(self, http_code, api_name, response_body, user_message=None):
-        # Call the base class constructor with the parameters it needs (Python 3+)
         self.http_code = http_code
         self.api_name = api_name
         self.response_body = response_body
@@ -30,6 +25,7 @@ class StarHubApiException(Exception):
 
 
 class StarHubApi:
+    """Represents StarHub API"""
     msso_login_url = 'https://login.starhubgee.com.sg/msso/mapp/api/login'
     fapi_login_url = 'https://fapi.starhub.com/MyStarhub/login/esso'
     fapi_all_usage_url = 'https://fapi.starhub.com/MyStarhub/usage?type=local'
@@ -44,11 +40,11 @@ class StarHubApi:
         self.user_token = None
         self.u_token = None
 
-    def get_user_token(self, retry=False):
+    def get_user_token(self):
         """Retrieve user_token from MSSO login endpoint
 
-        Note:
-            Will cache the user_token as it will not expire (tested: 8 December 2019)
+        user_token will be cached as it will not expire
+        This is tested on 8 December 2019
 
         Raises:
             StarHubApiError: Error associated with accessing StarHub's API
@@ -67,18 +63,17 @@ class StarHubApi:
             'Accept': 'application/json'
         }
 
-        r = requests.post(self.msso_login_url,
-                          headers=headers,
-                          json=mapp_body_dict,
-                          timeout=10)
+        res = requests.post(self.msso_login_url,
+                            headers=headers,
+                            json=mapp_body_dict,
+                            timeout=10)
 
-        if r.status_code == requests.codes.ok:
-            res_json = r.json()
+        if res.status_code == requests.codes.ok:
+            res_json = res.json()
             self.user_token = res_json.get('user_token', None)
             return res_json.get('user_token', None)
-        else:
-            raise StarHubApiException(
-                r.status_code, 'MSSO/MAPP/LOGIN', r.text, 'User token request failed')
+        raise StarHubApiException(res.status_code, 'MSSO/MAPP/LOGIN',
+                                  res.text, 'User token request failed')
 
     def get_utoken(self, user_token):
         """Retrieves u_token from the ESSO login endpoint
@@ -107,21 +102,21 @@ class StarHubApi:
             }
         }
 
-        r = requests.post(self.fapi_login_url,
-                          headers=headers,
-                          json=esso_body_dict,
-                          timeout=10)
-        if r.status_code == requests.codes.ok:
-            res_json = r.json()
+        res = requests.post(self.fapi_login_url,
+                            headers=headers,
+                            json=esso_body_dict,
+                            timeout=10)
+        if res.status_code == requests.codes.ok:
+            res_json = res.json()
             self.u_token = res_json['userDetails']['utoken']
             return self.u_token
-        elif r.status_code != requests.codes.ok and r.status_code == requests.codes.unauthorized:
+        if res.status_code != requests.codes.ok and \
+                res.status_code == requests.codes.unauthorized:
             self.logger.warning(
-                'Retrying get_utoken. Status code: %d', r.status_code)
+                'Retrying get_utoken. Status code: %d', res.status_code)
             return self.get_utoken(self.get_user_token())
-        else:
-            raise StarHubApiException(
-                r.status_code, 'FAPI/LOGIN/ESSO', r.text, 'UToken request failed')
+        raise StarHubApiException(res.status_code, 'FAPI/LOGIN/ESSO',
+                                  res.text, 'UToken request failed')
 
     def get_phone_data_usage(self, utoken, phone_number):
         """Get a single phone number's data usage
@@ -140,18 +135,22 @@ class StarHubApi:
             'User-Agent': self.user_agent_str,
             'x-sh-msa-version': self.x_sh_msa_version
         }
-        r = requests.get(self.fapi_specific_usage_url.format(phone_number=phone_number),
-                         headers=headers,
-                         timeout=10)
+        res = requests.get(
+            self.fapi_specific_usage_url.format(phone_number=phone_number),
+            headers=headers,
+            timeout=10)
 
-        if r.status_code == requests.codes.ok:
-            res_json = r.json()
+        if res.status_code == requests.codes.ok:
+            res_json = res.json()
             return res_json['mainContext']['present']['any'][0]['dataUsages']['usageDetail'][0]
-        elif r.status_code != requests.codes.ok and r.status_code == requests.codes.unauthorized:
+
+        if res.status_code != requests.codes.ok \
+                and res.status_code == requests.codes.unauthorized:
             self.logger.warning(
-                'Retrying get_phone_data_usage. Status code: %d', r.status_code)
+                'Retrying get_phone_data_usage. Status code: %d',
+                res.status_code)
             utoken = self.get_utoken(self.get_user_token())
             return self.get_phone_data_usage(utoken, phone_number)
-        else:
-            raise StarHubApiException(
-                r.status_code, 'FAPI/USAGE/DATA', r.text, 'Data usage request failed')
+
+        raise StarHubApiException(res.status_code, 'FAPI/USAGE/DATA',
+                                  res.text, 'Data usage request failed')

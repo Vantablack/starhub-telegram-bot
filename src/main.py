@@ -3,7 +3,6 @@
 import json
 import logging
 import textwrap
-import sys
 import tempfile
 
 import arrow
@@ -17,7 +16,9 @@ from starhub_api import StarHubApi
 from starhub_api import StarHubApiException
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s', level=logging.INFO)
+    format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger('starhub_bot')
 
 # Loading of config.json
@@ -66,10 +67,6 @@ def usage_handler(update, context):
             except RequestException as ex:
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
-            except:  # catch *all* exceptions
-                ex = sys.exc_info()[0]
-                logger.error(ex)
-                update.message.reply_text(text="Unexpected request exception")
 
 
 def history_handler(update, context):
@@ -102,10 +99,6 @@ def history_handler(update, context):
                 update.message.reply_text(
                     text=str(ex.user_message), parse_mode='Markdown')
             except RequestException as ex:
-                logger.error(ex)
-                update.message.reply_text(text="Unexpected request exception")
-            except:  # catch *all* exceptions
-                ex = sys.exc_info()[0]
                 logger.error(ex)
                 update.message.reply_text(text="Unexpected request exception")
 
@@ -142,10 +135,6 @@ def callback_handler(update, context):
         query.message.reply_text(
             text=str(ex.user_message), parse_mode='Markdown')
     except RequestException as ex:
-        logger.error(ex)
-        update.message.reply_text(text="Unexpected request exception")
-    except:  # catch *all* exceptions
-        ex = sys.exc_info()[0]
         logger.error(ex)
         update.message.reply_text(text="Unexpected request exception")
 
@@ -212,7 +201,7 @@ def format_usage_message(usage_dict):
     # Markdown formatting for Telegram message formatting
     telegram_format_message = textwrap.dedent("""
         *Data Usage for {usageServiceId}*
-        
+
         *{C-progressBar}*
         Total: *{totalFreeUnits} {totalFreeUnitsUOM}*
         Used: *{totalUsage} {totalUsageUOM}*
